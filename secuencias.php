@@ -8,7 +8,7 @@ requireLogin();
 requirePermission('pagos','ver');
 $pageTitle = 'Secuencias';
 
-/* â”€â”€ Totales de una secuencia â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ── Totales de una secuencia ─────────────────────────────── */
 function totalesSecuencia(int $sid): array {
     $f = dbQueryOne(
         "SELECT COUNT(*) n, COALESCE(SUM(total_usd),0) t
@@ -31,7 +31,7 @@ function totalesSecuencia(int $sid): array {
     ];
 }
 
-/* â”€â”€ Cerrar secuencia (guarda foto de los totales) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ── Cerrar secuencia (guarda foto de los totales) ────────── */
 if ($_SERVER['REQUEST_METHOD']==='POST' && ($_POST['action']??'')==='cerrar') {
     verifyCsrf();
     requirePermission('pagos','editar');
@@ -51,13 +51,13 @@ if ($_SERVER['REQUEST_METHOD']==='POST' && ($_POST['action']??'')==='cerrar') {
              clean($_POST['notas'] ?? ''), $_SESSION['user_id']]
         );
         dbExecute("UPDATE secuencias SET estado='cerrada', fecha_fin=COALESCE(fecha_fin,CURDATE()) WHERE id=?", [$sid]);
-        auditLog('UPDATE','secuencias',$sid,"Secuencia cerrada: {$sec['nombre']} â€” facturado \${$t['facturado']}");
+        auditLog('UPDATE','secuencias',$sid,"Secuencia cerrada: {$sec['nombre']} — facturado \${$t['facturado']}");
         $_SESSION['flash'] = ['type'=>'success','msg'=>"Secuencia \"{$sec['nombre']}\" cerrada. Totales guardados."];
     }
     header('Location: secuencias.php'); exit;
 }
 
-/* â”€â”€ Reabrir â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ── Reabrir ──────────────────────────────────────────────── */
 if ($_SERVER['REQUEST_METHOD']==='POST' && ($_POST['action']??'')==='reabrir') {
     verifyCsrf();
     requirePermission('pagos','editar');
@@ -72,7 +72,7 @@ if ($_SERVER['REQUEST_METHOD']==='POST' && ($_POST['action']??'')==='reabrir') {
     header('Location: secuencias.php'); exit;
 }
 
-/* â”€â”€ Datos â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ── Datos ────────────────────────────────────────────────── */
 $secuencias = dbQuery("SELECT * FROM secuencias ORDER BY fecha_ini DESC, id DESC");
 $filas = [];
 $tot = ['facturas'=>0,'facturado'=>0.0,'cobrado'=>0.0,'reportado'=>0.0,'pendiente'=>0.0];
@@ -109,8 +109,8 @@ include 'includes/header.php';
 <h4 style="margin-bottom:16px"><i class="fa-solid fa-layer-group" style="color:var(--primary)"></i> Control de secuencias</h4>
 
 <div class="sec-grid">
-    <div class="sec-card"><div class="lbl">Facturado histÃ³rico</div><div class="val"><?= formatUSD($tot['facturado']) ?></div></div>
-    <div class="sec-card"><div class="lbl">Cobrado histÃ³rico</div><div class="val" style="color:#059669"><?= formatUSD($tot['cobrado']) ?></div></div>
+    <div class="sec-card"><div class="lbl">Facturado histórico</div><div class="val"><?= formatUSD($tot['facturado']) ?></div></div>
+    <div class="sec-card"><div class="lbl">Cobrado histórico</div><div class="val" style="color:#059669"><?= formatUSD($tot['cobrado']) ?></div></div>
     <div class="sec-card"><div class="lbl">Reportado por vendedores</div><div class="val" style="color:#2980b9"><?= formatUSD($tot['reportado']) ?></div></div>
     <div class="sec-card"><div class="lbl">Pendiente de cobro</div><div class="val" style="color:#c0392b"><?= formatUSD($tot['pendiente']) ?></div></div>
 </div>
@@ -128,7 +128,7 @@ include 'includes/header.php';
                         <th class="text-end">Cobrado</th>
                         <th class="text-end">Reportado</th>
                         <th class="text-end">Pendiente</th>
-                        <th class="text-end">AcciÃ³n</th>
+                        <th class="text-end">Acción</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -153,7 +153,7 @@ include 'includes/header.php';
                         <td class="text-end">
                             <?php if ($s['estado']==='activa'): ?>
                                 <?php if (hasPermission('pagos','editar')): ?>
-                                <form method="POST" style="display:inline" onsubmit="return confirm('Â¿Cerrar esta secuencia? Se guardarÃ¡ una foto de los totales.')">
+                                <form method="POST" style="display:inline" onsubmit="return confirm('¿Cerrar esta secuencia? Se guardará una foto de los totales.')">
                                     <input type="hidden" name="<?= CSRF_TOKEN_NAME ?>" value="<?= getCsrfToken() ?>">
                                     <input type="hidden" name="action" value="cerrar">
                                     <input type="hidden" name="sec_id" value="<?= (int)$s['id'] ?>">
@@ -162,7 +162,7 @@ include 'includes/header.php';
                                 <?php endif; ?>
                             <?php else: ?>
                                 <?php if (hasPermission('pagos','editar')): ?>
-                                <form method="POST" style="display:inline" onsubmit="return confirm('Â¿Reabrir esta secuencia?')">
+                                <form method="POST" style="display:inline" onsubmit="return confirm('¿Reabrir esta secuencia?')">
                                     <input type="hidden" name="<?= CSRF_TOKEN_NAME ?>" value="<?= getCsrfToken() ?>">
                                     <input type="hidden" name="action" value="reabrir">
                                     <input type="hidden" name="sec_id" value="<?= (int)$s['id'] ?>">

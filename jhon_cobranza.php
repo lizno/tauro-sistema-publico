@@ -1,13 +1,13 @@
 <?php
 /**
- * jhon_cobranza.php â€” v3
- * MÃ³dulo exclusivo de cobranza para JHON JAIRO JIMÃ‰NEZ (vendedor_id = 4)
+ * jhon_cobranza.php — v3
+ * Módulo exclusivo de cobranza para JHON JAIRO JIMÉNEZ (vendedor_id = 4)
  *
  * Novedades v3:
  *  - Descuento por factura aplicado al guardar el % de referencia
- *  - Auto-aplicaciÃ³n de descuento a facturas nuevas (al abrir el cliente)
+ *  - Auto-aplicación de descuento a facturas nuevas (al abrir el cliente)
  *  - Aviso visible "Descuento X% aplicado" en cada factura
- *  - El pago grupal ya NO aplica descuento (se aplicÃ³ antes) â€” solo cobra sobre neto
+ *  - El pago grupal ya NO aplica descuento (se aplicó antes) — solo cobra sobre neto
  */
 require_once 'config/config.php';
 require_once 'functions/db.php';
@@ -18,9 +18,9 @@ requireLogin();
 requirePermission('pagos', 'ver');
 
 define('JHON_VID', 4);
-$pageTitle  = 'Cobranza â€” Jhon Jairo JimÃ©nez';
+$pageTitle  = 'Cobranza — Jhon Jairo Jiménez';
 
-// â”€â”€ Secuencia activa (el mÃ³dulo trabaja por secuencia) â”€â”€
+// ── Secuencia activa (el módulo trabaja por secuencia) ──
 $secuencias = dbQuery("SELECT id,nombre,estado,fecha_ini,fecha_fin FROM secuencias ORDER BY estado='activa' DESC, fecha_ini DESC, id DESC");
 $secActiva  = 0;
 foreach ($secuencias as $s) { if ($s['estado']==='activa') { $secActiva=(int)$s['id']; break; } }
@@ -29,14 +29,14 @@ $secCondV   = $secFiltro ? " AND v.secuencia_id=?" : "";
 $secCondVx  = $secFiltro ? " AND vx.secuencia_id=?" : "";
 $secPar     = $secFiltro ? [$secFiltro] : [];
 
-// â•â•â• FIX 1048 â•â•â• Garantiza el esquema de cobranza antes de cualquier consulta
+// ═══ FIX 1048 ═══ Garantiza el esquema de cobranza antes de cualquier consulta
 // (ver prepararEsquemaCobranza(): crea tablas y deja pago_id aceptando NULL).
 prepararEsquemaCobranza();
 $TIPOS_PAGO = ['efectivo','transferencia','punto','zelle','binance','wally','zinli','otro'];
 
-/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+/* ════════════════════════════════════════════════════════════════
    HELPERS LOCALES
-   â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
+   ════════════════════════════════════════════════════════════════ */
 if (!function_exists('dbLastId')) {
     function dbLastId(): int {
         if (function_exists('db'))    { try { return (int)db()->lastInsertId(); }    catch (\Throwable $e) {} }
@@ -57,24 +57,24 @@ function recalcVenta(int $ventaId): void {
 }
 
 /**
- * â•â•â• FIX 1048 â•â•â•
- * El descuento se aplica a la factura ANTES de cobrar, por eso todavÃ­a no
- * existe un pago asociado y el INSERT guarda pago_id = NULL a propÃ³sito.
- * En instalaciones viejas la columna cobros_descuentos.pago_id quedÃ³ como
- * NOT NULL y eso producÃ­a:
+ * ═══ FIX 1048 ═══
+ * El descuento se aplica a la factura ANTES de cobrar, por eso todavía no
+ * existe un pago asociado y el INSERT guarda pago_id = NULL a propósito.
+ * En instalaciones viejas la columna cobros_descuentos.pago_id quedó como
+ * NOT NULL y eso producía:
  *   SQLSTATE[23000] 1048 Column 'pago_id' cannot be null
  *
- * Esta funciÃ³n deja el esquema como el mÃ³dulo lo necesita:
+ * Esta función deja el esquema como el módulo lo necesita:
  *   - crea jhon_descuentos / cobros_descuentos si no existen;
  *   - convierte pago_id en nullable conservando su tipo actual;
  *   - agrega pagos.anulado y pagos.grupo_ref si faltan (abonos y pagos grupales);
- *   - crea el Ã­ndice Ãºnico de jhon_descuentos.cliente_id.
+ *   - crea el índice único de jhon_descuentos.cliente_id.
  *
  * Es "best effort": si el usuario de MySQL no tiene permisos de CREATE/ALTER
- * se registra en el log y la pÃ¡gina sigue funcionando. Se ejecuta una sola vez
- * por peticiÃ³n.
+ * se registra en el log y la página sigue funcionando. Se ejecuta una sola vez
+ * por petición.
  *
- * El mismo cambio estÃ¡ en: install/fix_cobros_descuentos.sql
+ * El mismo cambio está en: install/fix_cobros_descuentos.sql
  */
 function prepararEsquemaCobranza(): void {
     static $intentado = false;
@@ -123,10 +123,10 @@ function prepararEsquemaCobranza(): void {
                 $tipo = 'INT(11)';
             }
             dbExecute("ALTER TABLE cobros_descuentos MODIFY COLUMN pago_id {$tipo} NULL DEFAULT NULL");
-            error_log('cobros_descuentos.pago_id corregido a NULL (instalaciÃ³n con esquema viejo)');
+            error_log('cobros_descuentos.pago_id corregido a NULL (instalación con esquema viejo)');
         }
 
-        // La tabla pagos tambiÃ©n puede venir de una instalaciÃ³n vieja:
+        // La tabla pagos también puede venir de una instalación vieja:
         // recalcVenta() filtra por anulado y el pago grupal usa grupo_ref.
         $colsPagos = dbQuery(
             "SELECT COLUMN_NAME FROM information_schema.COLUMNS
@@ -149,13 +149,13 @@ function prepararEsquemaCobranza(): void {
 }
 
 /**
- * â•â•â• NUEVO â•â•â•
- * Aplica descuento a UNA factura si aÃºn no lo tiene.
- * Devuelve true si aplicÃ³, false si ya tenÃ­a o no aplica.
+ * ═══ NUEVO ═══
+ * Aplica descuento a UNA factura si aún no lo tiene.
+ * Devuelve true si aplicó, false si ya tenía o no aplica.
  *
- * El UPDATE del total y el INSERT del registro van en la MISMA transacciÃ³n:
+ * El UPDATE del total y el INSERT del registro van en la MISMA transacción:
  * antes, si el INSERT fallaba, la factura quedaba descontada sin registro y en
- * la siguiente carga se le volvÃ­a a aplicar el % (descuentos acumulados).
+ * la siguiente carga se le volvía a aplicar el % (descuentos acumulados).
  */
 function aplicarDescuentoFactura(int $ventaId, int $clienteId, float $pct, int $usuarioId): bool {
     if ($pct <= 0) return false;
@@ -168,7 +168,7 @@ function aplicarDescuentoFactura(int $ventaId, int $clienteId, float $pct, int $
 
         $v = dbQueryOne("SELECT total_usd, estado FROM ventas WHERE id=?", [$ventaId]);
         if (!$v) return false;
-        // No se descuentan facturas anuladas ni ya pagadas (quedarÃ­an descuadradas)
+        // No se descuentan facturas anuladas ni ya pagadas (quedarían descuadradas)
         if (in_array((string)$v['estado'], ['pagado','anulado'], true)) return false;
 
         $bruto    = (float)$v['total_usd'];
@@ -214,7 +214,7 @@ function aplicarDescuentoFactura(int $ventaId, int $clienteId, float $pct, int $
     }
 }
 
-/** â•â•â• NUEVO â•â•â• Aplica descuento a TODAS las facturas pendientes del cliente que no lo tengan. */
+/** ═══ NUEVO ═══ Aplica descuento a TODAS las facturas pendientes del cliente que no lo tengan. */
 function aplicarDescuentoCliente(int $clienteId, float $pct, int $usuarioId): array {
     $aplicadas = 0; $totalDesc = 0.0;
     if ($pct <= 0) return ['count'=>0,'total'=>0];
@@ -233,7 +233,7 @@ function aplicarDescuentoCliente(int $clienteId, float $pct, int $usuarioId): ar
 }
 
 /**
- * â•â•â• NUEVO â•â•â• Recalcula el descuento de UNA factura que YA tenÃ­a descuento,
+ * ═══ NUEVO ═══ Recalcula el descuento de UNA factura que YA tenía descuento,
  * usando el monto bruto original guardado en cobros_descuentos.
  * Sirve para cuando se cambia el % de referencia del cliente.
  * Con $pct = 0 la factura vuelve a su total bruto y se elimina el registro
@@ -287,8 +287,8 @@ function recalcularDescuentoFactura(int $ventaId, float $pct, int $usuarioId): b
     return true;
 }
 
-/** â•â•â• NUEVO â•â•â• Recalcula las facturas del cliente que ya tienen descuento.
- *  No toca las anuladas ni las que ya estÃ¡n pagadas (esas quedan como estÃ¡n). */
+/** ═══ NUEVO ═══ Recalcula las facturas del cliente que ya tienen descuento.
+ *  No toca las anuladas ni las que ya están pagadas (esas quedan como están). */
 function recalcularDescuentoCliente(int $clienteId, float $pct, int $usuarioId): array {
     $facturas = dbQuery(
         "SELECT v.id FROM ventas v
@@ -306,11 +306,11 @@ function recalcularDescuentoCliente(int $clienteId, float $pct, int $usuarioId):
     return ['count'=>$n];
 }
 
-/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+/* ════════════════════════════════════════════════════════════════
    ACCIONES POST
-   â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
+   ════════════════════════════════════════════════════════════════ */
 
-// â”€â”€ 1. Guardar / actualizar descuento por cliente (APLICA a facturas) â”€â”€â”€
+// ── 1. Guardar / actualizar descuento por cliente (APLICA a facturas) ───
 if ($_SERVER['REQUEST_METHOD']==='POST' && ($_POST['action']??'')==='guardar_descuento') {
     verifyCsrf();
     requirePermission('pagos','crear');
@@ -328,33 +328,33 @@ if ($_SERVER['REQUEST_METHOD']==='POST' && ($_POST['action']??'')==='guardar_des
                                            usuario_id=VALUES(usuario_id)",
             [$cliId, $pct, $notas, $_SESSION['user_id']]);
 
-        // â•â•â• NUEVO â•â•â• Facturas que YA tienen descuento: se recalculan al % nuevo
+        // ═══ NUEVO ═══ Facturas que YA tienen descuento: se recalculan al % nuevo
         $recalcCount = 0;
         if ($recalcular) {
             $rr = recalcularDescuentoCliente($cliId, $pct, (int)$_SESSION['user_id']);
             $recalcCount = (int)$rr['count'];
         }
 
-        // â•â•â• NUEVO â•â•â• Aplicar el descuento a las facturas existentes
+        // ═══ NUEVO ═══ Aplicar el descuento a las facturas existentes
         $res = ['count'=>0,'total'=>0];
         if ($aplicarAhora && $pct > 0) {
             $res = aplicarDescuentoCliente($cliId, $pct, (int)$_SESSION['user_id']);
         }
 
-        auditLog('UPDATE','jhon_descuentos',$cliId,"Descuento ref. cliente #$cliId â†’ {$pct}% (aplicadas {$res['count']} facturas, recalculadas $recalcCount)");
+        auditLog('UPDATE','jhon_descuentos',$cliId,"Descuento ref. cliente #$cliId → {$pct}% (aplicadas {$res['count']} facturas, recalculadas $recalcCount)");
         $msg = "Descuento de referencia {$pct}% guardado.";
         if ($res['count'] > 0) {
-            $msg .= " Se aplicÃ³ a {$res['count']} factura(s) por un total de \$".number_format($res['total'],2).".";
+            $msg .= " Se aplicó a {$res['count']} factura(s) por un total de \$".number_format($res['total'],2).".";
         }
         if ($recalcCount > 0) {
-            $msg .= " Se recalcularon $recalcCount factura(s) que ya tenÃ­an descuento.";
+            $msg .= " Se recalcularon $recalcCount factura(s) que ya tenían descuento.";
         }
         $_SESSION['flash']=['type'=>'success','msg'=>$msg];
     }
     header("Location: jhon_cobranza.php?cli=$cliId&sec=$secFiltro"); exit;
 }
 
-// â”€â”€ 2. Registrar abono individual â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── 2. Registrar abono individual ────────────────────────────────
 if ($_SERVER['REQUEST_METHOD']==='POST' && ($_POST['action']??'')==='registrar_abono') {
     verifyCsrf();
     requirePermission('pagos','crear');
@@ -391,7 +391,7 @@ if ($_SERVER['REQUEST_METHOD']==='POST' && ($_POST['action']??'')==='registrar_a
     header("Location: jhon_cobranza.php?cli=$cliId&sec=$secFiltro"); exit;
 }
 
-// â”€â”€ 3. Pago grupal automÃ¡tico FIFO (SIN descuento â€” ya se aplicÃ³ antes) â”€â”€
+// ── 3. Pago grupal automático FIFO (SIN descuento — ya se aplicó antes) ──
 if ($_SERVER['REQUEST_METHOD']==='POST' && ($_POST['action']??'')==='pago_grupo') {
     verifyCsrf();
     requirePermission('pagos','crear');
@@ -410,7 +410,7 @@ if ($_SERVER['REQUEST_METHOD']==='POST' && ($_POST['action']??'')==='pago_grupo'
                 header("Location: jhon_cobranza.php?cli=$cliId&sec=$secFiltro"); exit;
             }
         }
-        // Facturas pendientes del cliente (FIFO) â€” el total_usd ya viene neto con descuento
+        // Facturas pendientes del cliente (FIFO) — el total_usd ya viene neto con descuento
         $facturas = dbQuery(
             "SELECT id, numero, total_usd, monto_pagado_usd
              FROM ventas
@@ -445,7 +445,7 @@ if ($_SERVER['REQUEST_METHOD']==='POST' && ($_POST['action']??'')==='pago_grupo'
             $aplicados++;
         }
 
-        auditLog('INSERT','pagos',0,"Pago grupo Jhon cliente #$cliId: \$$monto â†’ $aplicados factura(s)");
+        auditLog('INSERT','pagos',0,"Pago grupo Jhon cliente #$cliId: \$$monto → $aplicados factura(s)");
         $msg = "Pago de \$".number_format($monto,2)." aplicado a $aplicados factura(s) FIFO.";
         if ($restante > 0.001) $msg .= " Sobrante \$".number_format($restante,2)." no aplicado.";
         $_SESSION['flash']=['type'=>'success','msg'=>$msg];
@@ -453,7 +453,7 @@ if ($_SERVER['REQUEST_METHOD']==='POST' && ($_POST['action']??'')==='pago_grupo'
     header("Location: jhon_cobranza.php?cli=$cliId&sec=$secFiltro"); exit;
 }
 
-// â”€â”€ 4. Editar abono â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── 4. Editar abono ──────────────────────────────────────────────
 if ($_SERVER['REQUEST_METHOD']==='POST' && ($_POST['action']??'')==='editar_abono') {
     verifyCsrf();
     requirePermission('pagos','editar');
@@ -481,7 +481,7 @@ if ($_SERVER['REQUEST_METHOD']==='POST' && ($_POST['action']??'')==='editar_abon
                     dbExecute("UPDATE pagos SET monto_usd=?, tipo=?, referencia=?, fecha=?, notas=? WHERE id=?",
                         [$nuevoMonto,$tipo,$ref,$fecha,$notas,$pagoId]);
                     recalcVenta((int)$pago['venta_id']);
-                    auditLog('UPDATE','pagos',$pagoId,"Abono editado #$pagoId â†’ \$$nuevoMonto");
+                    auditLog('UPDATE','pagos',$pagoId,"Abono editado #$pagoId → \$$nuevoMonto");
                     $_SESSION['flash']=['type'=>'success','msg'=>"Abono actualizado a \$".number_format($nuevoMonto,2)."."];
                 } else {
                     $_SESSION['flash']=['type'=>'danger','msg'=>"El monto debe ser mayor que 0 y no exceder el saldo."];
@@ -492,7 +492,7 @@ if ($_SERVER['REQUEST_METHOD']==='POST' && ($_POST['action']??'')==='editar_abon
     header("Location: jhon_cobranza.php?cli=$cliId&sec=$secFiltro"); exit;
 }
 
-// â”€â”€ 5. Anular abono (soft-delete + recÃ¡lculo) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── 5. Anular abono (soft-delete + recálculo) ────────────────────
 if ($_SERVER['REQUEST_METHOD']==='POST' && ($_POST['action']??'')==='anular_abono') {
     verifyCsrf();
     requirePermission('pagos','eliminar');
@@ -518,9 +518,9 @@ if ($_SERVER['REQUEST_METHOD']==='POST' && ($_POST['action']??'')==='anular_abon
     header("Location: jhon_cobranza.php?cli=$cliId&sec=$secFiltro"); exit;
 }
 
-/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+/* ════════════════════════════════════════════════════════════════
    DATOS
-   â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
+   ════════════════════════════════════════════════════════════════ */
 $cliSel = cleanInt($_GET['cli'] ?? 0);
 
 $clientes = dbQuery(
@@ -542,7 +542,7 @@ $clientes = dbQuery(
 );
 
 $cliData = null; $facturas = []; $pFacts = []; $statsCliente = null; $historialGlobal = [];
-$descuentosPorVenta = []; // â•â•â• NUEVO â•â•â• venta_id => [pct, desc, bruto, neto]
+$descuentosPorVenta = []; // ═══ NUEVO ═══ venta_id => [pct, desc, bruto, neto]
 
 if ($cliSel) {
     $cliData = dbQueryOne(
@@ -558,7 +558,7 @@ if ($cliSel) {
     if ($cliData) {
         $descPctCliente = (float)($cliData['descuento_pct'] ?? 0);
 
-        // â•â•â• NUEVO â•â•â• Auto-aplicar descuento a facturas nuevas que no lo tengan
+        // ═══ NUEVO ═══ Auto-aplicar descuento a facturas nuevas que no lo tengan
         if ($descPctCliente > 0) {
             $sinDesc = dbQuery(
                 "SELECT v.id FROM ventas v
@@ -582,7 +582,7 @@ if ($cliSel) {
             array_merge([$cliSel, JHON_VID], $secPar)
         );
 
-        // â•â•â• NUEVO â•â•â• Cargar info de descuentos aplicados por venta
+        // ═══ NUEVO ═══ Cargar info de descuentos aplicados por venta
         if (!empty($facturas)) {
             $ids = array_column($facturas, 'id');
             if ($ids) {
@@ -635,7 +635,7 @@ if ($cliSel) {
     }
 }
 
-// â•â•â• NUEVO â•â•â• Facturas con descuento que el recÃ¡lculo sÃ­ puede tocar
+// ═══ NUEVO ═══ Facturas con descuento que el recálculo sí puede tocar
 // (no se recalculan las anuladas ni las ya pagadas)
 $descRecalc = 0;
 foreach ($facturas as $f) {
@@ -703,11 +703,11 @@ include 'includes/header.php';
 <div class="jhon-banner">
     <div style="width:52px;height:52px;border-radius:50%;background:#e74c3c;display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:900;flex-shrink:0">JJ</div>
     <div style="flex:1">
-        <h2><i class="fa-solid fa-star" style="color:gold"></i> Cobranza â€” Jhon Jairo JimÃ©nez</h2>
-        <p>Pago grupal FIFO Â· Descuento por factura Â· Editar / anular abonos</p>
+        <h2><i class="fa-solid fa-star" style="color:gold"></i> Cobranza — Jhon Jairo Jiménez</h2>
+        <p>Pago grupal FIFO · Descuento por factura · Editar / anular abonos</p>
     </div>
     <div style="text-align:right;font-size:12px;opacity:.8">
-        <div><?=(int)($totGlobal['total_clientes']??0)?> clientes Â· <?=(int)($totGlobal['total_facturas']??0)?> facturas</div>
+        <div><?=(int)($totGlobal['total_clientes']??0)?> clientes · <?=(int)($totGlobal['total_facturas']??0)?> facturas</div>
         <div style="font-size:18px;font-weight:800;color:#2ecc71">$ <?=number_format($totGlobal['total_cobrado']??0,2,'.',',')?> cobrado</div>
         <div style="color:#e74c3c">$ <?=number_format($totGlobal['total_saldo']??0,2,'.',',')?> pendiente</div>
     </div>
@@ -785,7 +785,7 @@ include 'includes/header.php';
             <div style="font-size:11px;color:var(--text-muted);margin-top:2px">
                 <?=(int)$cl['total_facturas']?> factura(s)
                 <?php if($cl['descuento_pct'] > 0): ?>
-                Â· <span style="color:#6d28d9;font-weight:700">ðŸ·ï¸ Desc <?=$cl['descuento_pct']?>%</span>
+                · <span style="color:#6d28d9;font-weight:700">🏷️ Desc <?=$cl['descuento_pct']?>%</span>
                 <?php endif; ?>
             </div>
         </div>
@@ -858,9 +858,9 @@ include 'includes/header.php';
     $saldo   = (float)$f['saldo_usd'];
     $vencido = !empty($f['fecha_vencimiento']) && $f['fecha_vencimiento'] < date('Y-m-d') && $f['estado']!=='pagado';
     $eClass  = $vencido ? 'be-vencido' : match($f['estado']){'pagado'=>'be-pagado','parcial'=>'be-parcial',default=>'be-pendiente'};
-    $eLabel  = $vencido ? 'âš  VENCIDA' : match($f['estado']){'pagado'=>'âœ… Pagada','parcial'=>'â³ Parcial',default=>'ðŸ• Pendiente'};
+    $eLabel  = $vencido ? '⚠ VENCIDA' : match($f['estado']){'pagado'=>'✅ Pagada','parcial'=>'⏳ Parcial',default=>'🕐 Pendiente'};
     $historial = $pFacts[$f['id']] ?? [];
-    $desc      = $descuentosPorVenta[(int)$f['id']] ?? null; // â•â•â• NUEVO â•â•â•
+    $desc      = $descuentosPorVenta[(int)$f['id']] ?? null; // ═══ NUEVO ═══
 ?>
 <div class="fact-card <?=$desc?'con-desc':''?>" data-fact-id="<?=$f['id']?>">
     <div class="fact-header">
@@ -870,16 +870,16 @@ include 'includes/header.php';
                 <a href="ver_venta.php?id=<?=$f['id']?>" style="color:var(--primary)"><?=clean($f['numero'])?></a>
             </span>
             <span class="badge-estado <?=$eClass?>" style="margin-left:8px"><?=$eLabel?></span>
-            <?php if($desc): // â•â•â• NUEVO â•â•â• Aviso de descuento ?>
-            <span class="badge-desc" style="margin-left:6px" title="Descuento aplicado: -$<?=number_format($desc['desc'],2)?> (bruto $<?=number_format($desc['bruto'],2)?> â†’ neto $<?=number_format($desc['neto'],2)?>)">
-                ðŸ·ï¸ <?=$desc['pct']?>% desc.
+            <?php if($desc): // ═══ NUEVO ═══ Aviso de descuento ?>
+            <span class="badge-desc" style="margin-left:6px" title="Descuento aplicado: -$<?=number_format($desc['desc'],2)?> (bruto $<?=number_format($desc['bruto'],2)?> → neto $<?=number_format($desc['neto'],2)?>)">
+                🏷️ <?=$desc['pct']?>% desc.
             </span>
             <?php endif; ?>
-            <?php if($f['tipo_pago']==='credito'): ?><span style="font-size:11px;color:var(--text-muted);margin-left:6px">CrÃ©dito</span><?php endif; ?>
+            <?php if($f['tipo_pago']==='credito'): ?><span style="font-size:11px;color:var(--text-muted);margin-left:6px">Crédito</span><?php endif; ?>
         </div>
         <div style="font-size:12px;color:var(--text-muted)">
             <?=date('d/m/Y',strtotime($f['fecha']))?>
-            <?php if($f['fecha_vencimiento']): ?> Â· Vence: <strong style="color:<?=$vencido?'var(--danger)':'inherit'?>"><?=date('d/m/Y',strtotime($f['fecha_vencimiento']))?></strong><?php endif; ?>
+            <?php if($f['fecha_vencimiento']): ?> · Vence: <strong style="color:<?=$vencido?'var(--danger)':'inherit'?>"><?=date('d/m/Y',strtotime($f['fecha_vencimiento']))?></strong><?php endif; ?>
         </div>
     </div>
     <div class="fact-body">
@@ -888,12 +888,12 @@ include 'includes/header.php';
             <div><div style="font-size:11px;color:var(--text-muted)">Abonado</div><div style="font-weight:800;font-size:15px;color:var(--success)">$ <?=number_format($f['monto_pagado_usd'],2,'.',',')?></div></div>
             <div><div style="font-size:11px;color:var(--text-muted)">Saldo</div><div style="font-weight:800;font-size:15px;color:<?=$saldo>0?'var(--danger)':'var(--success)'?>">$ <?=number_format(max(0,$saldo),2,'.',',')?></div></div>
         </div>
-        <?php if($desc): // â•â•â• NUEVO â•â•â• Aviso detallado del descuento ?>
+        <?php if($desc): // ═══ NUEVO ═══ Aviso detallado del descuento ?>
         <div class="desc-info">
             <i class="fa-solid fa-tag"></i>
             <span>
                 <strong>Descuento <?=$desc['pct']?>% aplicado</strong>:
-                bruto <strong>$<?=number_format($desc['bruto'],2)?></strong> âˆ’
+                bruto <strong>$<?=number_format($desc['bruto'],2)?></strong> −
                 <strong style="color:#dc2626">$<?=number_format($desc['desc'],2)?></strong> =
                 neto <strong style="color:#16a34a">$<?=number_format($desc['neto'],2)?></strong>
             </span>
@@ -914,7 +914,7 @@ include 'includes/header.php';
     <div class="fact-pagos">
         <div style="font-size:11px;font-weight:700;color:var(--success);margin-bottom:6px;text-transform:uppercase;letter-spacing:.5px"><i class="fa-solid fa-history"></i> Abonos</div>
         <?php foreach($historial as $pago):
-            $ico = match($pago['tipo']){'efectivo'=>'ðŸ’µ','transferencia'=>'ðŸ¦','punto'=>'ðŸ’³','zelle'=>'âš¡','binance'=>'ðŸŸ¡','wally'=>'ðŸ“±','zinli'=>'ðŸ’œ',default=>'ðŸ”µ'};
+            $ico = match($pago['tipo']){'efectivo'=>'💵','transferencia'=>'🏦','punto'=>'💳','zelle'=>'⚡','binance'=>'🟡','wally'=>'📱','zinli'=>'💜',default=>'🔵'};
             $anulado = (int)($pago['anulado'] ?? 0) === 1;
         ?>
         <div class="pago-row <?=$anulado?'anulado':''?>">
@@ -933,7 +933,7 @@ include 'includes/header.php';
                     "notas"=>$pago['notas'] ?? "","factura"=>$f['numero'],
                     "cli_id"=>$cliSel
                 ], JSON_HEX_APOS|JSON_HEX_QUOT)?>)'><i class="fa-solid fa-pen"></i></button>
-                <form method="POST" style="display:inline" onsubmit="return confirm('Â¿Anular este abono de \$<?=number_format((float)$pago['monto_usd'],2)?>? Se recalcularÃ¡ el saldo.')">
+                <form method="POST" style="display:inline" onsubmit="return confirm('¿Anular este abono de \$<?=number_format((float)$pago['monto_usd'],2)?>? Se recalculará el saldo.')">
                     <input type="hidden" name="csrf_token" value="<?=getCsrfToken()?>">
                     <input type="hidden" name="action" value="anular_abono">
                     <input type="hidden" name="pago_id" value="<?=$pago['id']?>">
@@ -970,7 +970,7 @@ include 'includes/header.php';
                 <td><strong><?=clean($h['factura_numero'])?></strong></td>
                 <td><?=strtoupper($h['tipo'])?></td>
                 <td><?php if(!empty($h['grupo_ref'])): ?><span style="background:#e0f2fe;color:#0369a1;padding:1px 6px;border-radius:8px;font-size:10px">GRUPO</span><?php endif; ?></td>
-                <td><?=clean($h['referencia'] ?? 'â€”')?></td>
+                <td><?=clean($h['referencia'] ?? '—')?></td>
                 <td style="text-align:right;font-weight:700;color:var(--success)">$ <?=number_format($h['monto_usd'],2,'.',',')?></td>
                 <td><?=$an?'<span style="color:var(--danger);font-weight:700">ANULADO</span>':'<span style="color:var(--success);font-weight:700">VIGENTE</span>'?></td>
             </tr>
@@ -997,7 +997,7 @@ include 'includes/header.php';
     <div class="modal-box" style="max-width:460px">
         <div class="modal-header">
             <h4 id="modalAbonoTitle"><i class="fa-solid fa-hand-holding-dollar"></i> Registrar Abono</h4>
-            <button onclick="closeModal('modalAbono')" class="btn btn-light btn-sm btn-icon">âœ•</button>
+            <button onclick="closeModal('modalAbono')" class="btn btn-light btn-sm btn-icon">✕</button>
         </div>
         <form method="POST">
         <input type="hidden" name="csrf_token" value="<?=getCsrfToken()?>">
@@ -1007,7 +1007,7 @@ include 'includes/header.php';
         <div class="modal-body" style="display:grid;gap:12px">
             <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:10px;font-size:12px;display:grid;grid-template-columns:1fr 1fr;gap:8px;text-align:center">
                 <div><div id="abonoSaldoLabel" style="font-weight:800;font-size:16px;color:var(--danger)">$0.00</div><div style="color:var(--text-muted)">Saldo</div></div>
-                <div><div id="abonoNumLabel" style="font-weight:800;font-size:16px;color:var(--primary)">â€”</div><div style="color:var(--text-muted)">Factura</div></div>
+                <div><div id="abonoNumLabel" style="font-weight:800;font-size:16px;color:var(--primary)">—</div><div style="color:var(--text-muted)">Factura</div></div>
             </div>
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
                 <div class="form-group"><label class="form-label">Monto (USD) *</label><input type="number" name="monto" id="abonoMonto" class="form-control" step="0.01" min="0.01" required></div>
@@ -1015,7 +1015,7 @@ include 'includes/header.php';
             </div>
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
                 <div class="form-group"><label class="form-label">Tipo *</label><select name="tipo" class="form-select" required><?php foreach($TIPOS_PAGO as $t): ?><option value="<?=$t?>"><?=ucfirst($t)?></option><?php endforeach; ?></select></div>
-                <div class="form-group"><label class="form-label">Referencia</label><input type="text" name="referencia" class="form-control" placeholder="NÂ° operaciÃ³n..."></div>
+                <div class="form-group"><label class="form-label">Referencia</label><input type="text" name="referencia" class="form-control" placeholder="N° operación..."></div>
             </div>
             <div class="form-group"><label class="form-label">Notas</label><input type="text" name="notas" class="form-control" placeholder="Observaciones..."></div>
         </div>
@@ -1032,7 +1032,7 @@ include 'includes/header.php';
     <div class="modal-box" style="max-width:460px">
         <div class="modal-header">
             <h4><i class="fa-solid fa-pen"></i> Editar Abono <span id="editAbonoFactura" style="font-size:12px;color:var(--text-muted)"></span></h4>
-            <button onclick="closeModal('modalEditAbono')" class="btn btn-light btn-sm btn-icon">âœ•</button>
+            <button onclick="closeModal('modalEditAbono')" class="btn btn-light btn-sm btn-icon">✕</button>
         </div>
         <form method="POST">
         <input type="hidden" name="csrf_token" value="<?=getCsrfToken()?>">
@@ -1050,7 +1050,7 @@ include 'includes/header.php';
             </div>
             <div class="form-group"><label class="form-label">Notas</label><input type="text" name="notas" id="editAbonoNotas" class="form-control"></div>
             <div style="background:#fef3c7;border:1px solid #fcd34d;border-radius:6px;padding:8px;font-size:11px;color:#92400e">
-                <i class="fa-solid fa-info-circle"></i> Al guardar se recalcularÃ¡ el saldo y estado de la factura.
+                <i class="fa-solid fa-info-circle"></i> Al guardar se recalculará el saldo y estado de la factura.
             </div>
         </div>
         <div class="modal-footer">
@@ -1066,8 +1066,8 @@ include 'includes/header.php';
 <div class="modal-overlay" id="modalGrupo">
     <div class="modal-box" style="max-width:560px">
         <div class="modal-header">
-            <h4><i class="fa-solid fa-layer-group"></i> Pago Grupal FIFO â€” <?=clean($cliData['nombre'])?></h4>
-            <button onclick="closeModal('modalGrupo')" class="btn btn-light btn-sm btn-icon">âœ•</button>
+            <h4><i class="fa-solid fa-layer-group"></i> Pago Grupal FIFO — <?=clean($cliData['nombre'])?></h4>
+            <button onclick="closeModal('modalGrupo')" class="btn btn-light btn-sm btn-icon">✕</button>
         </div>
         <form method="POST">
         <input type="hidden" name="csrf_token" value="<?=getCsrfToken()?>">
@@ -1076,7 +1076,7 @@ include 'includes/header.php';
         <div class="modal-body" style="display:grid;gap:12px">
             <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:10px;font-size:12px;color:#1e40af">
                 <i class="fa-solid fa-info-circle"></i>
-                <strong>Pago FIFO:</strong> el monto se distribuye empezando por la factura mÃ¡s antigua.
+                <strong>Pago FIFO:</strong> el monto se distribuye empezando por la factura más antigua.
                 Los saldos ya incluyen el descuento aplicado (no se vuelve a descontar).
             </div>
 
@@ -1086,9 +1086,9 @@ include 'includes/header.php';
                 <?php foreach($facturas as $f): if($f['estado']==='pagado') continue; ?>
                 <div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px dashed var(--border);font-size:12px">
                     <span>
-                        <strong><?=clean($f['numero'])?></strong> Â· <?=date('d/m/Y',strtotime($f['fecha']))?>
+                        <strong><?=clean($f['numero'])?></strong> · <?=date('d/m/Y',strtotime($f['fecha']))?>
                         <?php if(isset($descuentosPorVenta[(int)$f['id']])): ?>
-                        <span class="badge-desc" style="margin-left:4px">ðŸ·ï¸ <?=$descuentosPorVenta[(int)$f['id']]['pct']?>%</span>
+                        <span class="badge-desc" style="margin-left:4px">🏷️ <?=$descuentosPorVenta[(int)$f['id']]['pct']?>%</span>
                         <?php endif; ?>
                     </span>
                     <span style="color:var(--danger);font-weight:700">$ <?=number_format(max(0,$f['saldo_usd']),2,'.',',')?></span>
@@ -1100,7 +1100,7 @@ include 'includes/header.php';
                 </div>
             </div>
 
-            <!-- Monto y demÃ¡s -->
+            <!-- Monto y demás -->
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
                 <div class="form-group">
                     <label class="form-label">Monto total a cobrar (USD) *</label>
@@ -1131,8 +1131,8 @@ include 'includes/header.php';
 <div class="modal-overlay" id="modalDescuento">
     <div class="modal-box" style="max-width:440px">
         <div class="modal-header">
-            <h4><i class="fa-solid fa-tag"></i> Descuento â€” <?=clean($cliData['nombre'])?></h4>
-            <button onclick="closeModal('modalDescuento')" class="btn btn-light btn-sm btn-icon">âœ•</button>
+            <h4><i class="fa-solid fa-tag"></i> Descuento — <?=clean($cliData['nombre'])?></h4>
+            <button onclick="closeModal('modalDescuento')" class="btn btn-light btn-sm btn-icon">✕</button>
         </div>
         <form method="POST">
         <input type="hidden" name="csrf_token" value="<?=getCsrfToken()?>">
@@ -1141,9 +1141,9 @@ include 'includes/header.php';
         <div class="modal-body" style="display:grid;gap:12px">
             <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:10px;font-size:12px;color:#856404">
                 <i class="fa-solid fa-info-circle"></i>
-                Al guardar, el % se aplicarÃ¡ <strong>a las facturas que aÃºn no tengan descuento</strong>.
-                Las facturas nuevas que entren despuÃ©s tambiÃ©n lo recibirÃ¡n automÃ¡ticamente.
-                Para cambiar el % de las que ya lo tienen, marcÃ¡ â€œRecalcularâ€ abajo.
+                Al guardar, el % se aplicará <strong>a las facturas que aún no tengan descuento</strong>.
+                Las facturas nuevas que entren después también lo recibirán automáticamente.
+                Para cambiar el % de las que ya lo tienen, marcá “Recalcular” abajo.
             </div>
             <div class="form-group">
                 <label class="form-label">% Descuento *</label>
@@ -1165,8 +1165,8 @@ include 'includes/header.php';
                 <label for="recalcularTodasChk" style="font-weight:700;font-size:12px;cursor:pointer;color:#991b1b">
                     Recalcular las <?= (int)$descRecalc ?> factura(s) que ya tienen descuento
                     <span style="display:block;font-weight:400;font-size:11px;color:#b91c1c;margin-top:2px;line-height:1.4">
-                        Les quita el % anterior y les pone este. Si ponÃ©s 0%, se les quita el descuento.
-                        No afecta facturas anuladas ni las que ya estÃ¡n pagadas.
+                        Les quita el % anterior y les pone este. Si ponés 0%, se les quita el descuento.
+                        No afecta facturas anuladas ni las que ya están pagadas.
                     </span>
                 </label>
             </div>
@@ -1186,14 +1186,14 @@ include 'includes/header.php';
 <?php endif; ?>
 
 <?php
-// â•â•â• NUEVO â•â•â• Datos JS para preview del descuento
+// ═══ NUEVO ═══ Datos JS para preview del descuento
 $facturasSinDescJs = [];
 $facturasConDescJs = [];
 foreach ($facturas as $f) {
     $fid = (int)$f['id'];
     $conDesc = isset($descuentosPorVenta[$fid]);
     if ($conDesc && $f['estado'] !== 'pagado') {
-        // Ya tiene descuento: el bruto original estÃ¡ guardado en cobros_descuentos
+        // Ya tiene descuento: el bruto original está guardado en cobros_descuentos
         $facturasConDescJs[] = ['numero'=>$f['numero'], 'bruto'=>(float)$descuentosPorVenta[$fid]['bruto']];
         continue;
     }
@@ -1211,7 +1211,7 @@ function openAbonoModal(ventaId, numero, saldo) {
     document.getElementById("abonoMonto").value = saldo.toFixed(2);
     document.getElementById("abonoMonto").max   = saldo.toFixed(2);
     document.getElementById("modalAbonoTitle").innerHTML =
-        \'<i class="fa-solid fa-hand-holding-dollar"></i> Abono â€” \' + numero;
+        \'<i class="fa-solid fa-hand-holding-dollar"></i> Abono — \' + numero;
     openModal("modalAbono");
 }
 
@@ -1223,11 +1223,11 @@ function openEditAbono(data) {
     document.getElementById("editAbonoTipo").value   = data.tipo;
     document.getElementById("editAbonoRef").value    = data.referencia || "";
     document.getElementById("editAbonoNotas").value  = data.notas || "";
-    document.getElementById("editAbonoFactura").textContent = "â€” " + data.factura;
+    document.getElementById("editAbonoFactura").textContent = "— " + data.factura;
     openModal("modalEditAbono");
 }
 
-// â•â•â• NUEVO â•â•â• Preview del descuento al escribir el %
+// ═══ NUEVO ═══ Preview del descuento al escribir el %
 function calcDescPreview() {
     const pct    = parseFloat(document.getElementById("descPctInput").value) || 0;
     const chkRec = document.getElementById("recalcularTodasChk");
@@ -1237,31 +1237,31 @@ function calcDescPreview() {
 
     if (pct > 0 && FACTS_SIN_DESC.length) {
         let totalDesc = 0;
-        html += "<strong>Se aplicarÃ¡ " + pct + "% a las que no tienen descuento:</strong><br>";
+        html += "<strong>Se aplicará " + pct + "% a las que no tienen descuento:</strong><br>";
         FACTS_SIN_DESC.forEach(f => {
             const d = f.total * pct / 100;
             const n = f.total - d;
             totalDesc += d;
-            html += "â€¢ " + f.numero + ": $" + f.total.toFixed(2) + " â†’ <strong style=\'color:#16a34a\'>$" + n.toFixed(2) + "</strong> <span style=\'color:#dc2626\'>(âˆ’$" + d.toFixed(2) + ")</span><br>";
+            html += "• " + f.numero + ": $" + f.total.toFixed(2) + " → <strong style=\'color:#16a34a\'>$" + n.toFixed(2) + "</strong> <span style=\'color:#dc2626\'>(−$" + d.toFixed(2) + ")</span><br>";
         });
-        html += "<strong style=\'display:block;margin-top:6px;border-top:1px solid #ddd6fe;padding-top:6px\'>Total a descontar: <span style=\'color:#dc2626\'>âˆ’$" + totalDesc.toFixed(2) + "</span></strong>";
+        html += "<strong style=\'display:block;margin-top:6px;border-top:1px solid #ddd6fe;padding-top:6px\'>Total a descontar: <span style=\'color:#dc2626\'>−$" + totalDesc.toFixed(2) + "</span></strong>";
     }
 
     if (recalc && FACTS_CON_DESC.length) {
         html += "<strong style=\'display:block;margin-top:10px\'>" +
-                (pct > 0 ? "Se recalcularÃ¡n al " + pct + "% (ya tienen descuento):"
-                         : "Se les quitarÃ¡ el descuento (vuelven al bruto):") +
+                (pct > 0 ? "Se recalcularán al " + pct + "% (ya tienen descuento):"
+                         : "Se les quitará el descuento (vuelven al bruto):") +
                 "</strong><br>";
         FACTS_CON_DESC.forEach(f => {
             const n = f.bruto * (1 - pct / 100);
             const d = f.bruto - n;
-            html += "â€¢ " + f.numero + ": bruto $" + f.bruto.toFixed(2) + " â†’ <strong style=\'color:#16a34a\'>$" + n.toFixed(2) + "</strong> <span style=\'color:#dc2626\'>(âˆ’$" + d.toFixed(2) + ")</span><br>";
+            html += "• " + f.numero + ": bruto $" + f.bruto.toFixed(2) + " → <strong style=\'color:#16a34a\'>$" + n.toFixed(2) + "</strong> <span style=\'color:#dc2626\'>(−$" + d.toFixed(2) + ")</span><br>";
         });
     }
 
     if (!html) {
         if (pct <= 0) html = "Sin descuento.";
-        else if (!FACTS_SIN_DESC.length) html = "No hay facturas pendientes de descuento (todas ya lo tienen). MarcÃ¡ â€œRecalcularâ€ para cambiarles el %.";
+        else if (!FACTS_SIN_DESC.length) html = "No hay facturas pendientes de descuento (todas ya lo tienen). Marcá “Recalcular” para cambiarles el %.";
         else html = "";
     }
     prev.innerHTML = html;

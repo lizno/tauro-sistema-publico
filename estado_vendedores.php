@@ -6,9 +6,9 @@ require_once 'functions/auth.php';
 
 requireLogin();
 requirePermission('vendedores','ver');
-$pageTitle = 'Estado de cuenta Â· Vendedores';
+$pageTitle = 'Estado de cuenta · Vendedores';
 
-/* â”€â”€ Filtros â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ── Filtros ───────────────────────────────────────────────── */
 $secuencias = dbQuery("SELECT id,nombre,estado,fecha_ini,fecha_fin FROM secuencias ORDER BY estado='activa' DESC, fecha_ini DESC, id DESC");
 $secActiva  = 0;
 foreach ($secuencias as $s) { if ($s['estado']==='activa') { $secActiva=(int)$s['id']; break; } }
@@ -16,7 +16,7 @@ foreach ($secuencias as $s) { if ($s['estado']==='activa') { $secActiva=(int)$s[
 $secFiltro = isset($_GET['sec']) ? cleanInt($_GET['sec']) : $secActiva;
 $vendFiltro = cleanInt($_GET['vendedor'] ?? 0);
 
-/* â”€â”€ Resumen general por vendedor â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ── Resumen general por vendedor ──────────────────────────── */
 $fFiltro = '';
 $fParams = [];
 if ($secFiltro) { $fFiltro = ' AND secuencia_id=?'; $fParams[] = $secFiltro; }
@@ -42,7 +42,7 @@ $resumen = dbQuery(
     array_merge($fParams, $fParams, $fParams)
 );
 
-/* â”€â”€ Cascada del vendedor seleccionado â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ── Cascada del vendedor seleccionado ─────────────────────── */
 $detalle = [];
 $selVendedor = null;
 if ($vendFiltro) {
@@ -65,7 +65,7 @@ if ($vendFiltro) {
         " ORDER BY fecha, id", $p) as $v) {
         $mov[] = [
             'fecha'=>$v['fecha'],
-            'concepto'=>'Reporte Â· '.ucfirst($v['tipo']) . ($v['referencia'] ? ' Â· '.$v['referencia'] : ''),
+            'concepto'=>'Reporte · '.ucfirst($v['tipo']) . ($v['referencia'] ? ' · '.$v['referencia'] : ''),
             'cargo'=>0.0, 'abono'=>(float)$v['monto_usd'],
         ];
     }
@@ -97,7 +97,7 @@ include 'includes/header.php';
 .neg{color:#c0392b}.pos{color:#059669}
 </style>
 
-<h4 style="margin-bottom:16px"><i class="fa-solid fa-chart-line" style="color:var(--primary)"></i> Estado de cuenta Â· Vendedores</h4>
+<h4 style="margin-bottom:16px"><i class="fa-solid fa-chart-line" style="color:var(--primary)"></i> Estado de cuenta · Vendedores</h4>
 
 <div class="ev-grid">
     <div class="ev-card"><div class="lbl">Facturado</div><div class="val"><?= formatUSD($totFacturado) ?></div></div>
@@ -133,7 +133,7 @@ include 'includes/header.php';
                     <tr>
                         <th>Vendedor</th><th class="text-center">Facturas</th>
                         <th class="text-end">Facturado</th><th class="text-end">Reportado</th>
-                        <th class="text-end">ComisiÃ³n</th><th class="text-end">Deuda</th>
+                        <th class="text-end">Comisión</th><th class="text-end">Deuda</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -170,7 +170,7 @@ include 'includes/header.php';
 <div class="card">
     <div class="card-header">
         <i class="fa-solid fa-water"></i>
-        <h5>CÃ³mo se va reduciendo la deuda Â· <?= clean($selVendedor['nombre']) ?></h5>
+        <h5>Cómo se va reduciendo la deuda · <?= clean($selVendedor['nombre']) ?></h5>
         <span class="badge" style="margin-left:auto;background:#eef4fb;color:#2980b9">
             Deuda actual: <?= formatUSD((float)$selVendedor['deuda']) ?>
         </span>
@@ -193,8 +193,8 @@ include 'includes/header.php';
                     <tr>
                         <td><?= date('d/m/Y', strtotime($d['fecha'])) ?></td>
                         <td><?= clean($d['concepto']) ?></td>
-                        <td class="text-end"><?= $d['cargo'] ? formatUSD($d['cargo']) : 'â€”' ?></td>
-                        <td class="text-end pos"><?= $d['abono'] ? formatUSD($d['abono']) : 'â€”' ?></td>
+                        <td class="text-end"><?= $d['cargo'] ? formatUSD($d['cargo']) : '—' ?></td>
+                        <td class="text-end pos"><?= $d['abono'] ? formatUSD($d['abono']) : '—' ?></td>
                         <td class="text-end" style="font-weight:800;color:<?= $d['saldo']>0?'#c0392b':'#059669' ?>">
                             <?= formatUSD($d['saldo']) ?>
                         </td>
