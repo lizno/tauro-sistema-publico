@@ -91,11 +91,42 @@ $totalIngresos    = $totCobros + $totVendedores + $ingresosManuales;
 $totalEgresos     = $egresosManuales;
 $saldo            = $totalIngresos - $totalEgresos;
 
+/* ── Ingresos por método de pago ───────────────────────────── */
+$metodos = [];
+$metLabels = [
+    'efectivo'=>'Efectivo','transferencia'=>'Transferencia','punto'=>'Punto',
+    'zelle'=>'Zelle','binance'=>'Binance','wally'=>'Wally','zinli'=>'Zinli','otro'=>'Otro',
+];
+
+foreach (dbQuery(
+    "SELECT p.tipo, COUNT(*) n, COALESCE(SUM(p.monto_usd),0) usd, COALESCE(SUM(p.monto_bs),0) bs
+     FROM pagos p JOIN ventas v ON v.id=p.venta_id
+     WHERE p.anulado=0 AND v.estado<>'anulado' {$wherePagos}
+     GROUP BY p.tipo", $params) as $r) {
+    $t = $r['tipo'];
+    $metodos[$t]['cli_usd'] = (float)$r['usd'];
+    $metodos[$t]['cli_bs']  = (float)$r['bs'];
+    $metodos[$t]['cli_n']   = (int)$r['n'];
+}
+
+foreach (dbQuery(
+    "SELECT tipo, COUNT(*) n, COALESCE(SUM(monto_usd),0) usd, COALESCE(SUM(monto_bs),0) bs
+     FROM pagos_vendedor WHERE 1 {$wherePV}
+     GROUP BY tipo", $paramsPV) as $r) {
+    $t = $r['tipo'];
+    $metodos[$t]['ven_usd'] = (float)$r['usd'];
+    $metodos[$t]['ven_bs']  = (float)$r['bs'];
+    $metodos[$t]['ven_n']   = (int)$r['n'];
+}
+
+$totBs = 0.0;
+foreach ($metodos as $m) { $totBs += ($m['cli_bs'] ?? 0) + ($m['ven_bs'] ?? 0); }
+
 /* ── Movimientos recientes (mezcla de las tres fuentes) ────── */
 $movs = [];
 
 foreach (dbQuery(
-    "SELECT p.id, p.fecha, p.monto_usd, p.tipo, p.referencia, p.notas,
+    "SELECT p.id, p.fecha, p.monto_usd, p.monto_bs, p.moneda, p.tipo, p.referencia, p.notas,
             v.numero, c.nombre cliente, vd.nombre vendedor
      FROM pagos p
      JOIN ventas v   ON v.id=p.venta_id
@@ -107,12 +138,13 @@ foreach (dbQuery(
         'fecha'=>$r['fecha'], 'tipo'=>'ingreso', 'categoria'=>'cobro_cliente',
         'concepto'=>'Cobro '.$r['numero'].($r['cliente'] ? ' · '.$r['cliente'] : ''),
         'vendedor'=>$r['vendedor'], 'monto'=>(float)$r['monto_usd'],
+        'bs'=>(float)($r['monto_bs'] ?? 0), 'moneda'=>$r['moneda'] ?? 'USD',
         'referencia'=>$r['referencia'], 'notas'=>$r['notas'],
     ];
 }
 
 foreach (dbQuery(
-    "SELECT pv.id, pv.fecha, pv.monto_usd, pv.tipo, pv.referencia, pv.descripcion, vd.nombre vendedor
+    "SELECT pv.id, pv.fecha, pv.monto_usd, pv.monto_bs, pv.moneda, pv.tipo, pv.referencia, pv.descripcion, vd.nombre vendedor
      FROM pagos_vendedor pv
      LEFT JOIN vendedores vd ON vd.id=pv.vendedor_id
      WHERE 1 {$wherePV}
@@ -121,6 +153,7 @@ foreach (dbQuery(
         'fecha'=>$r['fecha'], 'tipo'=>'ingreso', 'categoria'=>'reporte_vendedor',
         'concepto'=>'Reporte de '.($r['vendedor'] ?? 'vendedor'),
         'vendedor'=>$r['vendedor'], 'monto'=>(float)$r['monto_usd'],
+        'bs'=>(float)($r['monto_bs'] ?? 0), 'moneda'=>$r['moneda'] ?? 'USD',
         'referencia'=>$r['referencia'], 'notas'=>$r['descripcion'],
     ];
 }
@@ -136,6 +169,7 @@ foreach (dbQuery(
         'fecha'=>$r['fecha'], 'tipo'=>$r['tipo'], 'categoria'=>$r['categoria'],
         'concepto'=>ucfirst(str_replace('_',' ', $r['categoria'])) . ($r['vendedor'] ? ' · '.$r['vendedor'] : ''),
         'vendedor'=>$r['vendedor'], 'monto'=>(float)$r['monto_usd'],
+        'bs'=>(float)($r['monto_bs'] ?? 0), 'moneda'=>$r['moneda'] ?? 'USD',
         'referencia'=>$r['referencia'], 'notas'=>$r['notas'],
     ];
 }
@@ -174,6 +208,49 @@ include 'includes/header.php';
     <div class="tes-card">
         <div class="lbl">Saldo del período</div>
         <div class="val tes-bal"><?= formatUSD($saldo) ?></div>
+    </div>
+</div>
+
+<!-- Cómo entró el dinero, por método de pago -->
+<div class="card mb-3">
+    <div class="card-header">
+        <i class="fa-solid fa-wallet"></i>
+        <h5>Cómo entró el dinero · por método de pago</h5>
+        <span class="badge" style="margin-left:auto;background:#eef4fb;color:#2980b9">
+            Total en Bs. <?= number_format($totBs, 2, ',', '.') ?>
+        </span>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-wrapper">
+            <table class="table" style="font-size:13px">
+                <thead>
+                    <tr>
+                        <th>Método</th>
+                        <th class="text-end">Clientes USD</th>
+                        <th class="text-end">Clientes Bs</th>
+                        <th class="text-end">Vendedores USD</th>
+                        <th class="text-end">Vendedores Bs</th>
+                        <th class="text-center">Operaciones</th>
+                    </tr>
+                </thead>
+                <tbody>
+                <?php foreach ($metLabels as $k => $lbl): $m = $metodos[$k] ?? [];
+                    $cu = $m['cli_usd'] ?? 0; $cb = $m['cli_bs'] ?? 0;
+                    $vu = $m['ven_usd'] ?? 0; $vb = $m['ven_bs'] ?? 0;
+                    $n  = ($m['cli_n'] ?? 0) + ($m['ven_n'] ?? 0);
+                ?>
+                    <tr>
+                        <td><strong><?= $lbl ?></strong></td>
+                        <td class="text-end"><?= $cu ? formatUSD($cu) : '—' ?></td>
+                        <td class="text-end"><?= $cb ? formatBS($cb) : '—' ?></td>
+                        <td class="text-end"><?= $vu ? formatUSD($vu) : '—' ?></td>
+                        <td class="text-end"><?= $vb ? formatBS($vb) : '—' ?></td>
+                        <td class="text-center"><?= $n ?: '—' ?></td>
+                    </tr>
+                <?php endforeach; ?>
+                </tbody>
+            </table>
+        </div>
     </div>
 </div>
 
@@ -278,6 +355,9 @@ include 'includes/header.php';
                         <td><?= clean($m['vendedor'] ?? '—') ?></td>
                         <td class="text-end" style="font-weight:700;color:<?= $m['tipo']==='ingreso'?'#059669':'#c0392b' ?>">
                             <?= $m['tipo']==='ingreso'?'+':'-' ?><?= formatUSD($m['monto']) ?>
+                            <?php if (!empty($m['bs'])): ?>
+                            <div style="font-size:10px;color:#6b7280;font-weight:600"><?= formatBS($m['bs']) ?></div>
+                            <?php endif; ?>
                         </td>
                         <td><?= clean($m['referencia'] ?? '') ?></td>
                         <td class="text-muted"><?= clean($m['notas'] ?? '') ?></td>

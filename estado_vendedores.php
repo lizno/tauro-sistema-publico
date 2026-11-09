@@ -8,12 +8,16 @@ requireLogin();
 requirePermission('vendedores','ver');
 $pageTitle = 'Estado de cuenta · Vendedores';
 
+/* ── Porcentajes de comisión ──────────────────────────────── */
+$comDetal = (float)getConfig('comision_pct_detalista','10.00');
+$comMayor = (float)getConfig('comision_pct_mayorista','7.00');
+
 /* ── Filtros ───────────────────────────────────────────────── */
 $secuencias = dbQuery("SELECT id,nombre,estado,fecha_ini,fecha_fin FROM secuencias ORDER BY estado='activa' DESC, fecha_ini DESC, id DESC");
 $secActiva  = 0;
 foreach ($secuencias as $s) { if ($s['estado']==='activa') { $secActiva=(int)$s['id']; break; } }
 
-$secFiltro = isset($_GET['sec']) ? cleanInt($_GET['sec']) : $secActiva;
+$secFiltro  = isset($_GET['sec']) ? cleanInt($_GET['sec']) : $secActiva;
 $vendFiltro = cleanInt($_GET['vendedor'] ?? 0);
 
 /* ── Resumen general por vendedor ──────────────────────────── */
@@ -21,26 +25,50 @@ $fFiltro = '';
 $fParams = [];
 if ($secFiltro) { $fFiltro = ' AND secuencia_id=?'; $fParams[] = $secFiltro; }
 
-$fFactura = "SELECT vendedor_id, SUM(total_usd) facturado, COUNT(*) facturas
+$fFactura = "SELECT vendedor_id,
+                    SUM(total_usd) facturado,
+                    COUNT(*) facturas,
+                    SUM(CASE WHEN tipo_cliente='mayorista' THEN total_usd ELSE 0 END) mayor,
+                    SUM(CASE WHEN tipo_cliente='detalista' THEN total_usd ELSE 0 END) detal
              FROM ventas WHERE tipo_doc='venta' AND estado<>'anulado'" . $fFiltro . " GROUP BY vendedor_id";
-$fReporte = 'SELECT vendedor_id, SUM(monto_usd) reportado FROM pagos_vendedor WHERE 1' . $fFiltro . ' GROUP BY vendedor_id';
-$fComision = 'SELECT vendedor_id, SUM(monto_usd) comision FROM comisiones_vendedor WHERE 1' . $fFiltro . ' GROUP BY vendedor_id';
+$fReporte  = 'SELECT vendedor_id, SUM(monto_usd) reportado FROM pagos_vendedor WHERE 1' . $fFiltro . ' GROUP BY vendedor_id';
+$fComision = 'SELECT vendedor_id, SUM(monto_usd) pagada FROM comisiones_vendedor WHERE 1' . $fFiltro . ' GROUP BY vendedor_id';
 
-$resumen = dbQuery(
+$raw = dbQuery(
     "SELECT vd.id, vd.nombre,
             COALESCE(f.facturado,0) facturado,
             COALESCE(f.facturas,0)  facturas,
+            COALESCE(f.mayor,0)     mayor,
+            COALESCE(f.detal,0)     detal,
             COALESCE(r.reportado,0) reportado,
-            COALESCE(c.comision,0)  comision,
-            COALESCE(f.facturado,0) - COALESCE(r.reportado,0) deuda
+            COALESCE(c.pagada,0)    com_pagada
      FROM vendedores vd
      LEFT JOIN ({$fFactura})  f ON f.vendedor_id = vd.id
      LEFT JOIN ({$fReporte})  r ON r.vendedor_id = vd.id
      LEFT JOIN ({$fComision}) c ON c.vendedor_id = vd.id
-     WHERE vd.activo = 1
-     ORDER BY deuda DESC, vd.nombre",
+     WHERE vd.activo = 1",
     array_merge($fParams, $fParams, $fParams)
 );
+
+$resumen = [];
+foreach ($raw as $r) {
+    $mayor = (float)$r['mayor'];
+    $detal = (float)$r['detal'];
+    $comMay = round($mayor * $comMayor / 100, 2);
+    $comDet = round($detal * $comDetal / 100, 2);
+    $comTot = $comMay + $comDet;
+    $pagada = (float)$r['com_pagada'];
+
+    $r['com_mayor']    = $comMay;
+    $r['com_detal']    = $comDet;
+    $r['com_total']    = $comTot;
+    $r['com_pagada']   = $pagada;
+    $r['com_pendiente']= $comTot - $pagada;
+    $r['deuda']        = (float)$r['facturado'] - (float)$r['reportado'];
+    $resumen[] = $r;
+}
+
+usort($resumen, fn($a,$b) => $b['deuda'] <=> $a['deuda']);
 
 /* ── Cascada del vendedor seleccionado ─────────────────────── */
 $detalle = [];
@@ -82,27 +110,32 @@ if ($vendFiltro) {
 $totFacturado = array_sum(array_column($resumen,'facturado'));
 $totReportado = array_sum(array_column($resumen,'reportado'));
 $totDeuda     = array_sum(array_column($resumen,'deuda'));
+$totComision  = array_sum(array_column($resumen,'com_total'));
+$totComPend   = array_sum(array_column($resumen,'com_pendiente'));
 
 include 'includes/header.php';
 ?>
 <style>
-.ev-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:18px}
-@media(max-width:800px){.ev-grid{grid-template-columns:1fr}}
+.ev-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:18px}
+@media(max-width:900px){.ev-grid{grid-template-columns:repeat(2,1fr)}}
 .ev-card{background:white;border:1px solid var(--border);border-radius:12px;padding:16px 18px}
 .ev-card .lbl{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--text-muted)}
-.ev-card .val{font-size:22px;font-weight:900;margin-top:4px}
+.ev-card .val{font-size:20px;font-weight:900;margin-top:4px}
 .ev-row{cursor:pointer}
 .ev-row:hover{background:#f0f7ff}
 .ev-selected{background:#eef4fb !important;border-left:4px solid var(--primary)}
 .neg{color:#c0392b}.pos{color:#059669}
+.pill{display:inline-block;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700}
+.pill-ok{background:#d1fae5;color:#065f46}.pill-pend{background:#fff3cd;color:#856404}
 </style>
 
 <h4 style="margin-bottom:16px"><i class="fa-solid fa-chart-line" style="color:var(--primary)"></i> Estado de cuenta · Vendedores</h4>
 
 <div class="ev-grid">
     <div class="ev-card"><div class="lbl">Facturado</div><div class="val"><?= formatUSD($totFacturado) ?></div></div>
-    <div class="ev-card"><div class="lbl">Reportado</div><div class="val pos"><?= formatUSD($totReportado) ?></div></div>
-    <div class="ev-card"><div class="lbl">Deuda total</div><div class="val neg"><?= formatUSD($totDeuda) ?></div></div>
+    <div class="ev-card"><div class="lbl">Comisiones (<?= number_format($comMayor,0) ?>% may · <?= number_format($comDetal,0) ?>% det)</div><div class="val"><?= formatUSD($totComision) ?></div></div>
+    <div class="ev-card"><div class="lbl">Comisiones pendientes</div><div class="val" style="color:<?= $totComPend>0?'#c0392b':'#059669' ?>"><?= formatUSD($totComPend) ?></div></div>
+    <div class="ev-card"><div class="lbl">Deuda total de vendedores</div><div class="val neg"><?= formatUSD($totDeuda) ?></div></div>
 </div>
 
 <!-- Filtros -->
@@ -128,12 +161,19 @@ include 'includes/header.php';
     <div class="card-header"><i class="fa-solid fa-users"></i><h5>Todos los vendedores</h5></div>
     <div class="card-body p-0">
         <div class="table-wrapper">
-            <table class="table" style="font-size:13px">
+            <table class="table" style="font-size:12px">
                 <thead>
                     <tr>
-                        <th>Vendedor</th><th class="text-center">Facturas</th>
-                        <th class="text-end">Facturado</th><th class="text-end">Reportado</th>
-                        <th class="text-end">Comisión</th><th class="text-end">Deuda</th>
+                        <th>Vendedor</th>
+                        <th class="text-center">Facturas</th>
+                        <th class="text-end">Facturado</th>
+                        <th class="text-end">Mayorista</th>
+                        <th class="text-end">Detalista</th>
+                        <th class="text-end">Comisión</th>
+                        <th class="text-end">Pagada</th>
+                        <th class="text-end">Pendiente</th>
+                        <th class="text-end">Reportado</th>
+                        <th class="text-end">Deuda</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -143,8 +183,18 @@ include 'includes/header.php';
                         <td><strong><?= clean($r['nombre']) ?></strong></td>
                         <td class="text-center"><?= (int)$r['facturas'] ?></td>
                         <td class="text-end"><?= formatUSD((float)$r['facturado']) ?></td>
+                        <td class="text-end"><?= formatUSD((float)$r['mayor']) ?></td>
+                        <td class="text-end"><?= formatUSD((float)$r['detal']) ?></td>
+                        <td class="text-end"><?= formatUSD($r['com_total']) ?></td>
+                        <td class="text-end pos"><?= formatUSD($r['com_pagada']) ?></td>
+                        <td class="text-end">
+                            <?php if ($r['com_pendiente'] <= 0.001): ?>
+                                <span class="pill pill-ok">Pagada</span>
+                            <?php else: ?>
+                                <span class="pill pill-pend"><?= formatUSD($r['com_pendiente']) ?></span>
+                            <?php endif; ?>
+                        </td>
                         <td class="text-end pos"><?= formatUSD((float)$r['reportado']) ?></td>
-                        <td class="text-end"><?= formatUSD((float)$r['comision']) ?></td>
                         <td class="text-end" style="font-weight:800;color:<?= (float)$r['deuda']>0?'#c0392b':'#059669' ?>">
                             <?= formatUSD((float)$r['deuda']) ?>
                         </td>
@@ -155,8 +205,11 @@ include 'includes/header.php';
                     <tr style="background:#f8fafc;font-weight:800">
                         <td>Total</td><td></td>
                         <td class="text-end"><?= formatUSD($totFacturado) ?></td>
-                        <td class="text-end"><?= formatUSD($totReportado) ?></td>
+                        <td></td><td></td>
+                        <td class="text-end"><?= formatUSD($totComision) ?></td>
                         <td></td>
+                        <td class="text-end"><?= formatUSD($totComPend) ?></td>
+                        <td class="text-end"><?= formatUSD($totReportado) ?></td>
                         <td class="text-end"><?= formatUSD($totDeuda) ?></td>
                     </tr>
                 </tfoot>
@@ -166,6 +219,30 @@ include 'includes/header.php';
 </div>
 
 <?php if ($selVendedor): ?>
+<!-- Detalle del vendedor -->
+<div class="card mb-3">
+    <div class="card-header">
+        <i class="fa-solid fa-handshake"></i>
+        <h5>Resumen de <?= clean($selVendedor['nombre']) ?></h5>
+    </div>
+    <div class="card-body" style="display:grid;grid-template-columns:repeat(6,1fr);gap:12px">
+        <div><div class="text-muted" style="font-size:10px;text-transform:uppercase;font-weight:700">Mayorista</div>
+            <div style="font-weight:800"><?= formatUSD((float)$selVendedor['mayor']) ?></div></div>
+        <div><div class="text-muted" style="font-size:10px;text-transform:uppercase;font-weight:700">Detalista</div>
+            <div style="font-weight:800"><?= formatUSD((float)$selVendedor['detal']) ?></div></div>
+        <div><div class="text-muted" style="font-size:10px;text-transform:uppercase;font-weight:700">Comisión total</div>
+            <div style="font-weight:800;color:#6d28d9"><?= formatUSD($selVendedor['com_total']) ?></div></div>
+        <div><div class="text-muted" style="font-size:10px;text-transform:uppercase;font-weight:700">Comisión pagada</div>
+            <div style="font-weight:800;color:#059669"><?= formatUSD($selVendedor['com_pagada']) ?></div></div>
+        <div><div class="text-muted" style="font-size:10px;text-transform:uppercase;font-weight:700">Comisión pendiente</div>
+            <div style="font-weight:800;color:<?= $selVendedor['com_pendiente']>0?'#c0392b':'#059669' ?>">
+                <?= $selVendedor['com_pendiente']<=0.001 ? 'Pagada' : formatUSD($selVendedor['com_pendiente']) ?>
+            </div></div>
+        <div><div class="text-muted" style="font-size:10px;text-transform:uppercase;font-weight:700">Deuda</div>
+            <div style="font-weight:800;color:#c0392b"><?= formatUSD((float)$selVendedor['deuda']) ?></div></div>
+    </div>
+</div>
+
 <!-- Cascada -->
 <div class="card">
     <div class="card-header">
