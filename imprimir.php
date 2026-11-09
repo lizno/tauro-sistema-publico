@@ -34,6 +34,16 @@ if (!$venta) { header('Location: documentos.php'); exit; }
 $detalles = dbQuery("SELECT vd.*,p.codigo FROM venta_detalles vd LEFT JOIN productos p ON vd.producto_id=p.id WHERE vd.venta_id=? ORDER BY vd.id", [$vid]);
 $tipoDoc  = $template ?: $venta['tipo_doc'];
 
+// Descuento aplicado a la factura (si existe)
+$descuento = dbQueryOne(
+    "SELECT descuento_pct, monto_bruto_usd, monto_desc_usd, monto_neto_usd
+     FROM cobros_descuentos WHERE venta_id=? ORDER BY id LIMIT 1", [$vid]
+);
+$descPct  = $descuento ? (float)$descuento['descuento_pct']  : 0.0;
+$descUSD  = $descuento ? (float)$descuento['monto_desc_usd'] : 0.0;
+$brutoUSD = ($descuento && $descUSD > 0.0001) ? (float)$descuento['monto_bruto_usd'] : (float)$venta['total_usd'];
+$conDesc  = $descUSD > 0.0001;
+
 // Empresa
 $empresa = [
     'nombre'    => getConfig('empresa_nombre', APP_NAME),
@@ -288,16 +298,38 @@ $formatoMonto = fn(float $usd) => ($moneda === 'BS')
             $totalMostrar = ($moneda==='BS') ? $venta['total_usd']*$tasaVal : $venta['total_usd'];
             $pagoMostrar  = ($moneda==='BS') ? $venta['monto_pagado_usd']*$tasaVal : $venta['monto_pagado_usd'];
             $saldoMostrar = $totalMostrar - $pagoMostrar;
+            $brutoMostrar = ($moneda==='BS') ? $brutoUSD*$tasaVal : $brutoUSD;
+            $descMostrar  = ($moneda==='BS') ? $descUSD*$tasaVal  : $descUSD;
             ?>
             <tr>
                 <td colspan="4" class="r">SUBTOTAL:</td>
                 <td class="r"><?= array_sum(array_column($detalles,'cantidad')) ?></td>
                 <td class="r">
                     <?= $moneda==='BS'
-                        ? number_format($totalMostrar,2,',','.')
-                        : '$ '.number_format($totalMostrar,2,'.',',') ?>
+                        ? number_format($brutoMostrar,2,',','.')
+                        : '$ '.number_format($brutoMostrar,2,'.',',') ?>
                 </td>
             </tr>
+            <?php if ($conDesc): ?>
+            <tr>
+                <td colspan="4" class="r">DESCUENTO (<?= number_format($descPct,2) ?>%):</td>
+                <td class="r"></td>
+                <td class="r" style="color:#c0392b">
+                    - <?= $moneda==='BS'
+                        ? number_format($descMostrar,2,',','.')
+                        : '$ '.number_format($descMostrar,2,'.',',') ?>
+                </td>
+            </tr>
+            <tr>
+                <td colspan="4" class="r"><strong>TOTAL CON DESCUENTO:</strong></td>
+                <td class="r"></td>
+                <td class="r"><strong>
+                    <?= $moneda==='BS'
+                        ? number_format($totalMostrar,2,',','.')
+                        : '$ '.number_format($totalMostrar,2,'.',',') ?>
+                </strong></td>
+            </tr>
+            <?php endif; ?>
             <?php if ($fletePct > 0): ?>
             <tr>
                 <td colspan="5" class="r">FLETE (<?= number_format($fletePct,2) ?>%):</td>
@@ -323,8 +355,18 @@ $formatoMonto = fn(float $usd) => ($moneda === 'BS')
         ?>
         <div class="tot-row">
             <strong>Subtotal:</strong>
+            <strong><?= number_format($conDesc ? $brutoUSD*$tasaVal : $baseBS,2,',','.') ?></strong>
+        </div>
+        <?php if ($conDesc): ?>
+        <div class="tot-row">
+            <strong>Descuento (<?= number_format($descPct,2) ?>%):</strong>
+            <strong style="color:#c0392b">- <?= number_format($descUSD*$tasaVal,2,',','.') ?></strong>
+        </div>
+        <div class="tot-row">
+            <strong>Base:</strong>
             <strong><?= number_format($baseBS,2,',','.') ?></strong>
         </div>
+        <?php endif; ?>
         <div class="tot-row">
             <strong>IVA (16%):</strong>
             <strong><?= number_format($ivaBS,2,',','.') ?></strong>
@@ -345,6 +387,16 @@ $formatoMonto = fn(float $usd) => ($moneda === 'BS')
         <?php endif; ?>
 
         <?php else: // USD — sin IVA ?>
+        <?php if ($conDesc): ?>
+        <div class="tot-row">
+            <span>Subtotal:</span>
+            <strong>$ <?= number_format($brutoUSD,2,'.',',') ?></strong>
+        </div>
+        <div class="tot-row">
+            <span>Descuento (<?= number_format($descPct,2) ?>%):</span>
+            <strong style="color:#c0392b">- $ <?= number_format($descUSD,2,'.',',') ?></strong>
+        </div>
+        <?php endif; ?>
         <div class="tot-row">
             <span>Total USD:</span>
             <strong>$ <?= number_format($totalMostrar,2,'.',',') ?></strong>

@@ -225,7 +225,19 @@ function convertirDocumento(int $ventaId, string $nuevoTipo, int $usuarioId): ar
 
         // 4) Solo descontar stock al convertir a Factura (venta)
         $stockAfectado = 0;
+        $notaTasa = '';
         if ($nuevoTipo === 'venta') {
+            // La factura se emite con la tasa del día de la conversión
+            $tasaNueva = getTasaActual();
+            if ($tasaNueva) {
+                $nuevaTasa    = (float)$tasaNueva['tasa_bs'];
+                $nuevoTotalBs = round((float)$venta['total_usd'] * $nuevaTasa, 2);
+                dbExecute(
+                    "UPDATE ventas SET tasa_cambio_id=?, tasa_valor=?, total_bs=? WHERE id=?",
+                    [$tasaNueva['id'], $nuevaTasa, $nuevoTotalBs, $ventaId]
+                );
+                $notaTasa = " — tasa actualizada a {$nuevaTasa} Bs/USD (antes {$venta['tasa_valor']})";
+            }
             $detalles = dbQuery("SELECT * FROM venta_detalles WHERE venta_id=?", [$ventaId]);
             foreach ($detalles as $d) {
                 if ($d['producto_id'] && $d['cantidad'] > 0) {
@@ -244,7 +256,8 @@ function convertirDocumento(int $ventaId, string $nuevoTipo, int $usuarioId): ar
                 [$ventaId, $venta['estado'], $nuevoEstado,
                  $venta['tipo_doc'], $nuevoTipo, $stockAfectado,
                  "Convertido de {$venta['tipo_doc']} a {$nuevoTipo}" .
-                 ($stockAfectado ? " — stock descontado" : " — sin afectar stock"),
+                 ($stockAfectado ? " — stock descontado" : " — sin afectar stock") .
+                 $notaTasa,
                  $usuarioId]
             );
         } catch (Exception $e) { /* columna stock_afectado puede no existir en instancias viejas */ }

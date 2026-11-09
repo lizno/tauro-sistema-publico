@@ -113,13 +113,15 @@ $tiposTab = $tab === 'despacho'
 $sql = "SELECT v.id, v.numero, v.tipo_doc, v.fecha, v.tipo_cliente, v.tipo_pago,
                v.estado, v.total_usd, v.monto_pagado_usd,
                (v.total_usd - v.monto_pagado_usd) saldo_usd,
-               v.notas, v.fecha_vencimiento, v.tasa_valor, v.secuencia_id,
+               v.notas, v.fecha_vencimiento, v.tasa_valor, v.secuencia_id, v.vendedor_id,
                c.nombre cliente_nombre, c.rif cliente_rif,
                vd.nombre vendedor_nombre,
+               z.nombre zona_nombre,
                s.nombre secuencia_nombre
         FROM ventas v
         LEFT JOIN clientes c    ON v.cliente_id  = c.id
         LEFT JOIN vendedores vd ON v.vendedor_id = vd.id
+        LEFT JOIN zonas z       ON vd.zona_id    = z.id
         LEFT JOIN secuencias s  ON v.secuencia_id = s.id
         WHERE v.tipo_doc IN ({$tiposTab[0]})";
 $params = [];
@@ -377,7 +379,8 @@ include 'includes/header.php';
             + Crear <?= $tab==='despacho'?'Despacho':'Factura' ?>
         </a>
     </td></tr>
-    <?php else: foreach($ventas as $v):
+    <?php else: $paletaVend = ['#c0392b','#2980b9','#27ae60','#8e44ad','#d35400','#16a085','#2c3e50','#e67e22']; foreach($ventas as $v):
+        $colVend = $paletaVend[((int)($v['vendedor_id'] ?? 0)) % count($paletaVend)];
         // Datos para la fila expandible (data attributes)
         $pagadoFmt  = formatUSD((float)$v['monto_pagado_usd']);
         $saldoFmt   = formatUSD((float)$v['saldo_usd']);
@@ -388,7 +391,7 @@ include 'includes/header.php';
         $esAnulado  = $v['estado']==='anulado';
     ?>
     <tr class="doc-row <?= $esAnulado?'':'hoverable' ?>"
-        style="border-bottom:1px solid var(--border);<?= $esAnulado?'opacity:.45':''; ?>"
+        style="border-bottom:1px solid var(--border);border-left:4px solid <?= $colVend ?>;<?= $esAnulado?'opacity:.45':''; ?>"
         data-id="<?= $v['id'] ?>"
         data-pagado="<?= $pagadoFmt ?>"
         data-saldo="<?= $saldoFmt ?>"
@@ -409,7 +412,14 @@ include 'includes/header.php';
             <strong class="fs-13"><?= clean($v['cliente_nombre']) ?></strong>
             <?php if($v['cliente_rif']): ?><br><small class="text-muted font-mono"><?= clean($v['cliente_rif']) ?></small><?php endif; ?>
         </td>
-        <td style="padding:10px 10px;font-size:12px"><?= clean($v['vendedor_nombre']??'—') ?></td>
+        <td style="padding:10px 10px;font-size:12px">
+            <?php if (!empty($v['vendedor_nombre'])): ?>
+            <span style="display:inline-block;padding:2px 8px;border-radius:10px;font-weight:700;
+                         background:<?= $colVend ?>1f;color:<?= $colVend ?>">
+                <?= clean($v['vendedor_nombre']) ?><?= !empty($v['zona_nombre']) ? ' ('.clean($v['zona_nombre']).')' : '' ?>
+            </span>
+            <?php else: ?>—<?php endif; ?>
+        </td>
         <td style="padding:10px 10px"><?= badgeTipo($v['tipo_cliente']) ?></td>
         <td style="padding:10px 10px">
             <span class="badge <?= $v['tipo_pago']==='credito'?'badge-info':'badge-secondary' ?>">
