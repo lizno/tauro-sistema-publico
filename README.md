@@ -81,5 +81,7 @@ install/        Esquema, datos base y creador de administrador
 
 ## Licencia
 
-Pendiente de definir. Mientras no exista un archivo `LICENSE`, todos los derechos
-quedan reservados al autor.
+[MIT](LICENSE) © 2026 Carlos Lizcano.
+
+Puedes usar, copiar, modificar y distribuir el código, manteniendo el aviso de
+copyright y la licencia.
