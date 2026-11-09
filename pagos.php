@@ -73,6 +73,11 @@ if ($_SERVER['REQUEST_METHOD']==='POST' && ($_POST['action']??'')==='registrar_p
         $_SESSION['flash']=['type'=>'error','msg'=>'Datos incompletos.'];
         header("Location: pagos.php?sec=$secuenciaId&vendedor=$vendedorId"); exit;
     }
+    $secRow = dbQueryOne("SELECT estado,nombre FROM secuencias WHERE id=?", [$secuenciaId]);
+    if (!$secRow || $secRow['estado'] !== 'activa') {
+        $_SESSION['flash']=['type'=>'error','msg'=>'La secuencia está cerrada. Reábrela desde Secuencias para registrar pagos.'];
+        header("Location: pagos.php?sec=$secuenciaId&vendedor=$vendedorId"); exit;
+    }
     dbExecute("INSERT INTO pagos_vendedor (vendedor_id,secuencia_id,fecha,monto_usd,tipo,referencia,descripcion,moneda,tasa_cobro,monto_bs,usuario_id) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
         [$vendedorId,$secuenciaId,$fecha,$monto,$tipo,$referencia,$descripcion,$moneda,$tasaCobro,$montoBs,$_SESSION['user_id']]);
     auditLog('INSERT','pagos_vendedor',(int)dbLastId(),"Pago al vendedor #$vendedorId: $monto USD");
@@ -122,6 +127,11 @@ if ($_SERVER['REQUEST_METHOD']==='POST' && ($_POST['action']??'')==='pagar_comis
     $notas       = clean($_POST['notas'] ?? '');
     $fecha       = $_POST['fecha'] ?? date('Y-m-d');
     if ($vendedorId && $secuenciaId && $monto > 0) {
+        $secRow = dbQueryOne("SELECT estado FROM secuencias WHERE id=?", [$secuenciaId]);
+        if (!$secRow || $secRow['estado'] !== 'activa') {
+            $_SESSION['flash']=['type'=>'error','msg'=>'La secuencia está cerrada. Reábrela para registrar comisiones.'];
+            header("Location: pagos.php?sec=$secuenciaId&vendedor=$vendedorId"); exit;
+        }
         dbExecute("INSERT INTO comisiones_vendedor (vendedor_id,secuencia_id,fecha,monto_usd,notas,usuario_id) VALUES (?,?,?,?,?,?)",
             [$vendedorId,$secuenciaId,$fecha,$monto,$notas,$_SESSION['user_id']]);
         auditLog('INSERT','comisiones_vendedor',(int)dbLastId(),"Comisión pagada al vendedor #$vendedorId: $monto USD");

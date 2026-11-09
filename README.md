@@ -18,7 +18,9 @@ funcionar en cualquier hosting compartido o VPS con Apache/Nginx.
 | **Clientes y proveedores** | RIF, teléfonos, direcciones, límite de crédito, saldo |
 | **Vendedores** | Cédula, zona, comisión, tipo de precio por defecto |
 | **Documentos** | Impresión de facturas, notas de entrega, plantillas configurables, exportación a Word |
-| **Reportes** | Ventas por período, vendedor, cliente, producto; inventario valorizado; auditoría |
+| **Tesorería** | Ingresos y egresos, entregas de dinero a vendedores, saldo del período |
+| **Secuencias** | Control por período: facturado, cobrado, reportado y pendiente; cierre con foto de totales |
+| **Reportes** | Ventas por período, vendedor, cliente, producto; estado de cuenta por vendedor en cascada; inventario valorizado; auditoría |
 | **Configuración** | Datos de la empresa, logo, moneda, tasas de cambio, zonas, departamentos |
 | **Usuarios y roles** | Permisos por módulo y acción, bloqueo por intentos fallidos, auditoría de acciones |
 

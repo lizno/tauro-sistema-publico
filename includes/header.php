@@ -30,15 +30,18 @@ $menu = [
         ['page'=>'index',       'icon'=>'fa-gauge-high',       'label'=>'Dashboard',    'mod'=>null],
     ],
     'OPERACIONES' => [
-        ['page'=>'documentos',       'icon'=>'fa-file-invoice',          'label'=>'Documentos',      'mod'=>'ventas'],
-        ['page'=>'plantilla_editor', 'icon'=>'fa-wand-magic-sparkles',   'label'=>'Plantilla',       'mod'=>null, 'supervisor'=>true],
-        ['page'=>'inventario',  'icon'=>'fa-boxes-stacked',    'label'=>'Inventario',   'mod'=>'inventario'],
-        ['page'=>'categorias',  'icon'=>'fa-tags',             'label'=>'Categorias',   'mod'=>'inventario'],
-        ['page'=>'compras',     'icon'=>'fa-truck-ramp-box',   'label'=>'Compras',      'mod'=>'compras'],
-        ['page'=>'pagos',            'icon'=>'fa-money-bill-wave',  'label'=>'Cobros',       'mod'=>'pagos'],
-        ['page'=>'jhon_cobranza', 'icon'=>'fa-star',             'label'=>'Cobros Jhon',  'mod'=>'pagos'],
-        ['page'=>'devoluciones','icon'=>'fa-rotate-left',      'label'=>'Devoluciones', 'mod'=>'devoluciones'],
-        ['page'=>'transporte',  'icon'=>'fa-truck-fast',       'label'=>'Transporte',   'mod'=>null],
+        ['page'=>'documentos',  'icon'=>'fa-file-invoice',      'label'=>'Documentos',  'mod'=>'ventas'],
+        ['page'=>'inventario',  'icon'=>'fa-boxes-stacked',     'label'=>'Inventario',  'mod'=>'inventario'],
+        ['page'=>'categorias',  'icon'=>'fa-tags',              'label'=>'Categorias',  'mod'=>'inventario'],
+        ['page'=>'compras',     'icon'=>'fa-truck-ramp-box',    'label'=>'Compras',     'mod'=>'compras'],
+        ['page'=>'transporte',  'icon'=>'fa-truck-fast',        'label'=>'Transporte',  'mod'=>null],
+    ],
+    'COBRANZAS' => [
+        ['page'=>'pagos',         'icon'=>'fa-money-bill-wave', 'label'=>'Cobros',        'mod'=>'pagos'],
+        ['page'=>'jhon_cobranza', 'icon'=>'fa-star',            'label'=>'Cobros Jhon',   'mod'=>'pagos'],
+        ['page'=>'tesoreria',     'icon'=>'fa-vault',           'label'=>'Tesorería',     'mod'=>'pagos'],
+        ['page'=>'secuencias',    'icon'=>'fa-layer-group',     'label'=>'Secuencias',    'mod'=>'pagos'],
+        ['page'=>'devoluciones',  'icon'=>'fa-rotate-left',     'label'=>'Devoluciones',  'mod'=>'devoluciones'],
     ],
     'DIRECTORIO' => [
         ['page'=>'clientes',    'icon'=>'fa-users',            'label'=>'Clientes',     'mod'=>'clientes'],
@@ -47,11 +50,12 @@ $menu = [
         ['page'=>'zonas',       'icon'=>'fa-map-location-dot', 'label'=>'Zonas',        'mod'=>'zonas'],
     ],
     'REPORTES Y CONFIG' => [
-        ['page'=>'reportes',    'icon'=>'fa-chart-bar',        'label'=>'Reportes',     'mod'=>null],
-        ['page'=>'moneda',      'icon'=>'fa-coins',            'label'=>'Tasa de Cambio','mod'=>'moneda'],
-        ['page'=>'configuracion','icon'=>'fa-gear',            'label'=>'Configuración', 'mod'=>null],
-        ['page'=>'usuarios',    'icon'=>'fa-lock',             'label'=>'Usuarios',      'mod'=>'usuarios'],
-        ['page'=>'auditoria',   'icon'=>'fa-clipboard-list',   'label'=>'Auditoría',     'mod'=>'auditoria'],
+        ['page'=>'reportes',        'icon'=>'fa-chart-bar',  'label'=>'Reportes',        'mod'=>null],
+        ['page'=>'estado_vendedores','icon'=>'fa-chart-line','label'=>'Estado de cuenta','mod'=>'vendedores'],
+        ['page'=>'moneda',          'icon'=>'fa-coins',      'label'=>'Tasa de Cambio',  'mod'=>'moneda'],
+        ['page'=>'configuracion',   'icon'=>'fa-gear',       'label'=>'Configuración',   'mod'=>null],
+        ['page'=>'usuarios',        'icon'=>'fa-lock',       'label'=>'Usuarios',        'mod'=>'usuarios'],
+        ['page'=>'auditoria',       'icon'=>'fa-clipboard-list','label'=>'Auditoría',    'mod'=>'auditoria'],
     ],
 ];
 ?>
@@ -103,6 +107,7 @@ $menu = [
         <div class="sidebar-section"><?= $seccion ?></div>
         <?php foreach ($items as $item):
             if ($item['mod'] && !hasPermission($item['mod'],'ver')) continue;
+            if ($item['page']==='tesoreria' && !hasPermission('pagos','crear') && !isSupervisor()) continue;
             if ($item['page']==='usuarios' && !isAdmin()) continue;
             if ($item['page']==='configuracion' && !isSupervisor()) continue;
             $isActive = $currentPage === $item['page'] ||

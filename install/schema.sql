@@ -390,6 +390,25 @@ CREATE TABLE `secuencias` (
   CONSTRAINT `secuencias_ibfk_1` FOREIGN KEY (`usuario_id`) REFERENCES `usuarios` (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+DROP TABLE IF EXISTS `secuencias_cierre`;
+CREATE TABLE `secuencias_cierre` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `secuencia_id` int NOT NULL,
+  `fecha_cierre` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `total_facturas` int NOT NULL DEFAULT '0',
+  `total_facturado` decimal(14,4) NOT NULL DEFAULT '0.0000',
+  `total_cobrado` decimal(14,4) NOT NULL DEFAULT '0.0000',
+  `total_reportado` decimal(14,4) NOT NULL DEFAULT '0.0000',
+  `total_pendiente` decimal(14,4) NOT NULL DEFAULT '0.0000',
+  `notas` text COLLATE utf8mb4_unicode_ci,
+  `usuario_id` int DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_secuencia` (`secuencia_id`),
+  KEY `cierre_usr_fk` (`usuario_id`),
+  CONSTRAINT `cierre_sec_fk` FOREIGN KEY (`secuencia_id`) REFERENCES `secuencias` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `cierre_usr_fk` FOREIGN KEY (`usuario_id`) REFERENCES `usuarios` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 DROP TABLE IF EXISTS `tasas_cambio`;
 CREATE TABLE `tasas_cambio` (
   `id` int NOT NULL AUTO_INCREMENT,
@@ -401,6 +420,26 @@ CREATE TABLE `tasas_cambio` (
   PRIMARY KEY (`id`),
   KEY `usuario_id` (`usuario_id`),
   CONSTRAINT `tasas_cambio_ibfk_1` FOREIGN KEY (`usuario_id`) REFERENCES `usuarios` (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+DROP TABLE IF EXISTS `tesoreria_movimientos`;
+CREATE TABLE `tesoreria_movimientos` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `fecha` date NOT NULL,
+  `tipo` enum('ingreso','egreso') COLLATE utf8mb4_unicode_ci NOT NULL,
+  `categoria` varchar(40) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'otro',
+  `vendedor_id` int DEFAULT NULL,
+  `monto_usd` decimal(12,4) NOT NULL,
+  `referencia` varchar(150) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `notas` text COLLATE utf8mb4_unicode_ci,
+  `usuario_id` int DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_tesoreria_fecha` (`fecha`),
+  KEY `idx_tesoreria_vendedor` (`vendedor_id`),
+  KEY `tesoreria_usuario_fk` (`usuario_id`),
+  CONSTRAINT `tesoreria_usuario_fk` FOREIGN KEY (`usuario_id`) REFERENCES `usuarios` (`id`) ON DELETE SET NULL,
+  CONSTRAINT `tesoreria_vendedor_fk` FOREIGN KEY (`vendedor_id`) REFERENCES `vendedores` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 DROP TABLE IF EXISTS `usuarios`;
@@ -448,6 +487,86 @@ CREATE TABLE `vendedores` (
   CONSTRAINT `vendedores_ibfk_1` FOREIGN KEY (`usuario_id`) REFERENCES `usuarios` (`id`),
   CONSTRAINT `vendedores_ibfk_2` FOREIGN KEY (`zona_id`) REFERENCES `zonas` (`id`),
   CONSTRAINT `vendedores_ibfk_3` FOREIGN KEY (`departamento_id`) REFERENCES `departamentos` (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+DROP TABLE IF EXISTS `venta_detalles`;
+CREATE TABLE `venta_detalles` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `venta_id` int NOT NULL,
+  `producto_id` int DEFAULT NULL,
+  `descripcion` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `ref` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `bulto` int DEFAULT '1',
+  `precio_usd` decimal(10,4) NOT NULL,
+  `cantidad` decimal(10,2) NOT NULL,
+  `monto_usd` decimal(12,4) NOT NULL,
+  PRIMARY KEY (`id`),
+  KEY `venta_id` (`venta_id`),
+  KEY `producto_id` (`producto_id`),
+  CONSTRAINT `venta_detalles_ibfk_1` FOREIGN KEY (`venta_id`) REFERENCES `ventas` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `venta_detalles_ibfk_2` FOREIGN KEY (`producto_id`) REFERENCES `productos` (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+DROP TABLE IF EXISTS `ventas`;
+CREATE TABLE `ventas` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `numero` varchar(30) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `tipo_doc` enum('cotizacion','despacho','venta') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'despacho',
+  `cliente_id` int NOT NULL,
+  `vendedor_id` int DEFAULT NULL,
+  `secuencia_id` int DEFAULT NULL,
+  `tipo_cliente` enum('mayorista','detalista') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'detalista',
+  `tasa_cambio_id` int DEFAULT NULL,
+  `tasa_valor` decimal(15,4) DEFAULT NULL,
+  `moneda` enum('USD','BS') COLLATE utf8mb4_unicode_ci DEFAULT 'USD',
+  `moneda_impresion` enum('USD','BS') COLLATE utf8mb4_unicode_ci DEFAULT 'USD',
+  `fecha` date NOT NULL,
+  `fecha_vencimiento` date DEFAULT NULL,
+  `tipo_pago` enum('contado','credito') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'contado',
+  `estado` enum('pendiente','parcial','pagado','anulado') COLLATE utf8mb4_unicode_ci DEFAULT 'pendiente',
+  `total_usd` decimal(12,4) DEFAULT '0.0000',
+  `total_bs` decimal(15,2) DEFAULT '0.00',
+  `flete_pct` decimal(5,2) DEFAULT '0.00',
+  `flete_monto_usd` decimal(12,4) DEFAULT '0.0000',
+  `bulto_carga` int NOT NULL DEFAULT '0',
+  `zona_carga` varchar(150) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `orden_carga` int DEFAULT NULL,
+  `sin_transporte` tinyint(1) DEFAULT '0',
+  `cancelado_manual` tinyint(1) DEFAULT '0',
+  `obs_cobranza` text COLLATE utf8mb4_unicode_ci,
+  `monto_pagado_usd` decimal(12,4) DEFAULT '0.0000',
+  `notas` text COLLATE utf8mb4_unicode_ci,
+  `usuario_id` int DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `numero` (`numero`),
+  KEY `cliente_id` (`cliente_id`),
+  KEY `vendedor_id` (`vendedor_id`),
+  KEY `tasa_cambio_id` (`tasa_cambio_id`),
+  KEY `usuario_id` (`usuario_id`),
+  KEY `secuencia_id` (`secuencia_id`),
+  CONSTRAINT `ventas_ibfk_1` FOREIGN KEY (`cliente_id`) REFERENCES `clientes` (`id`),
+  CONSTRAINT `ventas_ibfk_2` FOREIGN KEY (`vendedor_id`) REFERENCES `vendedores` (`id`),
+  CONSTRAINT `ventas_ibfk_3` FOREIGN KEY (`tasa_cambio_id`) REFERENCES `tasas_cambio` (`id`),
+  CONSTRAINT `ventas_ibfk_4` FOREIGN KEY (`usuario_id`) REFERENCES `usuarios` (`id`),
+  CONSTRAINT `ventas_ibfk_5` FOREIGN KEY (`secuencia_id`) REFERENCES `secuencias` (`id`),
+  CONSTRAINT `ventas_ibfk_6` FOREIGN KEY (`secuencia_id`) REFERENCES `secuencias` (`id`),
+  CONSTRAINT `ventas_ibfk_7` FOREIGN KEY (`secuencia_id`) REFERENCES `secuencias` (`id`),
+  CONSTRAINT `ventas_ibfk_8` FOREIGN KEY (`secuencia_id`) REFERENCES `secuencias` (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+DROP TABLE IF EXISTS `zonas`;
+CREATE TABLE `zonas` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `nombre` varchar(100) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `descripcion` text COLLATE utf8mb4_unicode_ci,
+  `departamento_id` int DEFAULT '1',
+  `activo` tinyint(1) DEFAULT '1',
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `departamento_id` (`departamento_id`),
+  CONSTRAINT `zonas_ibfk_1` FOREIGN KEY (`departamento_id`) REFERENCES `departamentos` (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 SET FOREIGN_KEY_CHECKS = 1;

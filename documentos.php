@@ -30,16 +30,56 @@ if (isset($_GET['anular']) && hasPermission('ventas','anular')) {
         header('Location: documentos.php'); exit;
     }
     $vid = cleanInt($_GET['anular']);
-    $v   = dbQueryOne("SELECT * FROM ventas WHERE id=?",[$vid]);
-    if ($v && $v['estado']!=='anulado') {
-        if ($v['tipo_doc']==='venta') {
-            foreach (dbQuery("SELECT * FROM venta_detalles WHERE venta_id=?",[$vid]) as $d)
-                if ($d['producto_id']) actualizarStock($d['producto_id'],$d['cantidad'],'sumar');
+    $pdo = getDB();
+    $pdo->beginTransaction();
+    try {
+        $v = dbQueryOne("SELECT * FROM ventas WHERE id=? FOR UPDATE", [$vid]);
+        if ($v && $v['estado'] !== 'anulado') {
+            $stockAfectado = 0;
+            $notaStock     = 'sin afectar stock';
+
+            if ($v['tipo_doc'] === 'venta') {
+                $devoluciones = (int)(dbQueryOne("SELECT COUNT(*) c FROM devoluciones WHERE venta_id=?", [$vid])['c'] ?? 0);
+                if ($devoluciones > 0) {
+                    // El stock ya se reintegró al registrar la devolución: no duplicar
+                    $notaStock = 'stock ya reintegrado por devoluciones';
+                } else {
+                    foreach (dbQuery("SELECT * FROM venta_detalles WHERE venta_id=?", [$vid]) as $d) {
+                        if ($d['producto_id'] && (float)$d['cantidad'] > 0) {
+                            actualizarStock((int)$d['producto_id'], (float)$d['cantidad'], 'sumar');
+                            $stockAfectado = 1;
+                        }
+                    }
+                    if ($stockAfectado) $notaStock = 'stock reintegrado al inventario';
+                }
+            }
+
+            dbExecute("UPDATE ventas SET estado='anulado' WHERE id=?", [$vid]);
+            actualizarSaldoCliente((int)$v['cliente_id']);
+
+            try {
+                dbExecute(
+                    "INSERT INTO documento_historial (venta_id,estado_desde,estado_hasta,tipo_desde,tipo_hasta,stock_afectado,nota,usuario_id)
+                     VALUES (?,?,?,?,?,?,?,?)",
+                    [$vid, $v['estado'], 'anulado', $v['tipo_doc'], $v['tipo_doc'], $stockAfectado,
+                     "Anulado — {$notaStock}", $_SESSION['user_id'] ?? null]
+                );
+            } catch (Exception $e) { /* columna stock_afectado puede no existir en instancias viejas */ }
+
+            $pdo->commit();
+
+            auditLog('UPDATE','ventas',$vid,"Anulado: {$v['numero']}",$v,['estado'=>'anulado']);
+            $_SESSION['flash'] = [
+                'type'=>'success',
+                'msg'=>"Documento {$v['numero']} anulado." . ($stockAfectado ? ' Productos reintegrados al inventario.' : ''),
+            ];
+        } else {
+            $pdo->rollBack();
         }
-        dbExecute("UPDATE ventas SET estado='anulado' WHERE id=?",[$vid]);
-        actualizarSaldoCliente($v['cliente_id']);
-        auditLog('UPDATE','ventas',$vid,"Anulado: {$v['numero']}",$v,['estado'=>'anulado']);
-        $_SESSION['flash'] = ['type'=>'success','msg'=>"Documento {$v['numero']} anulado."];
+    } catch (Throwable $e) {
+        if ($pdo->inTransaction()) $pdo->rollBack();
+        error_log('anular venta: ' . $e->getMessage());
+        $_SESSION['flash'] = ['type'=>'error','msg'=>'No se pudo anular el documento: '.$e->getMessage()];
     }
     header('Location: documentos.php'); exit;
 }
@@ -50,10 +90,20 @@ if (!in_array($tab,['despacho','venta'])) $tab = 'despacho';
 $filtroEstado   = clean($_GET['estado']    ?? '');
 $filtroTipoCli  = clean($_GET['tipo_cli']  ?? '');
 $filtroVendedor = cleanInt($_GET['vendedor'] ?? 0);
-$fechaIni       = clean($_GET['fecha_ini'] ?? date('Y-m-01'));
-$fechaFin       = clean($_GET['fecha_fin'] ?? date('Y-m-d'));
+$fechaIni       = clean($_GET['fecha_ini'] ?? '');
+$fechaFin       = clean($_GET['fecha_fin'] ?? '');
 $busqueda       = clean($_GET['q'] ?? '');
 $esVendedor     = ($_SESSION['rol_id']??0) == 3;
+
+// ── Secuencia: por defecto la que está activa; 0 = todas ──
+$secuencias = dbQuery("SELECT id,nombre,estado,fecha_ini,fecha_fin
+                       FROM secuencias
+                       ORDER BY estado='activa' DESC, fecha_ini DESC, id DESC");
+$secActiva = 0;
+foreach ($secuencias as $s) {
+    if ($s['estado'] === 'activa') { $secActiva = (int)$s['id']; break; }
+}
+$filtroSec = isset($_GET['secuencia']) ? cleanInt($_GET['secuencia']) : $secActiva;
 
 // Despacho tab = cotizacion + despacho juntos
 $tiposTab = $tab === 'despacho'
@@ -71,8 +121,12 @@ $sql = "SELECT v.id, v.numero, v.tipo_doc, v.fecha, v.tipo_cliente, v.tipo_pago,
         LEFT JOIN clientes c    ON v.cliente_id  = c.id
         LEFT JOIN vendedores vd ON v.vendedor_id = vd.id
         LEFT JOIN secuencias s  ON v.secuencia_id = s.id
-        WHERE v.tipo_doc IN ({$tiposTab[0]}) AND v.fecha BETWEEN ? AND ?";
-$params = [$fechaIni, $fechaFin];
+        WHERE v.tipo_doc IN ({$tiposTab[0]})";
+$params = [];
+
+if ($filtroSec)      { $sql.=" AND v.secuencia_id=?";  $params[]=$filtroSec; }
+if ($fechaIni)       { $sql.=" AND v.fecha>=?";        $params[]=$fechaIni; }
+if ($fechaFin)       { $sql.=" AND v.fecha<=?";        $params[]=$fechaFin; }
 
 if ($filtroEstado)   { $sql.=" AND v.estado=?";       $params[]=$filtroEstado; }
 if ($filtroTipoCli)  { $sql.=" AND v.tipo_cliente=?";  $params[]=$filtroTipoCli; }
@@ -86,12 +140,18 @@ $ventas     = dbQuery($sql, $params);
 $vendedores = dbQuery("SELECT id,nombre FROM vendedores WHERE activo=1 ORDER BY nombre");
 
 // Conteos para badges de tabs
+// Conteos para badges de tabs (misma secuencia y fechas)
+$cWhere  = "1=1";
+$cParams = [];
+if ($filtroSec) { $cWhere .= " AND secuencia_id=?"; $cParams[] = $filtroSec; }
+if ($fechaIni)  { $cWhere .= " AND fecha>=?";       $cParams[] = $fechaIni; }
+if ($fechaFin)  { $cWhere .= " AND fecha<=?";       $cParams[] = $fechaFin; }
 $conteos = dbQueryOne(
     "SELECT
-        SUM(tipo_doc IN ('cotizacion','despacho') AND estado!='anulado' AND fecha BETWEEN ? AND ?) AS des,
-        SUM(tipo_doc='venta' AND estado!='anulado' AND fecha BETWEEN ? AND ?) AS fac
+        SUM(tipo_doc IN ('cotizacion','despacho') AND estado!='anulado' AND {$cWhere}) AS des,
+        SUM(tipo_doc='venta' AND estado!='anulado' AND {$cWhere}) AS fac
      FROM ventas",
-    [$fechaIni,$fechaFin,$fechaIni,$fechaFin]
+    array_merge($cParams, $cParams)
 );
 $cntDes = (int)($conteos['des'] ?? 0);
 $cntFac = (int)($conteos['fac'] ?? 0);
@@ -201,23 +261,25 @@ include 'includes/header.php';
 
 <!-- ── TABS ── -->
 <div class="doc-tabs">
-    <a href="documentos.php?tab=despacho&fecha_ini=<?= $fechaIni ?>&fecha_fin=<?= $fechaFin ?>"
+    <a href="documentos.php?tab=despacho&secuencia=<?= $filtroSec ?>&fecha_ini=<?= urlencode($fechaIni) ?>&fecha_fin=<?= urlencode($fechaFin) ?>"
        class="doc-tab <?= $tab==='despacho'?'active-des':'' ?>">
         <i class="fa-solid fa-truck-fast"></i>
         Despacho
         <span class="tab-badge" style="background:#2980b9"><?= $cntDes ?></span>
     </a>
-    <a href="documentos.php?tab=venta&fecha_ini=<?= $fechaIni ?>&fecha_fin=<?= $fechaFin ?>"
+    <a href="documentos.php?tab=venta&secuencia=<?= $filtroSec ?>&fecha_ini=<?= urlencode($fechaIni) ?>&fecha_fin=<?= urlencode($fechaFin) ?>"
        class="doc-tab <?= $tab==='venta'?'active-fac':'' ?>">
         <i class="fa-solid fa-file-invoice-dollar"></i>
         Factura
         <span class="tab-badge" style="background:#27ae60"><?= $cntFac ?></span>
     </a>
     <div style="flex:1"></div>
-    <!-- Botón editor de plantillas -->
-    <a href="plantilla_editor.php" class="doc-tab" style="color:var(--text-muted);font-size:12px">
-        <i class="fa-solid fa-wand-magic-sparkles"></i> Editor de plantilla
-    </a>
+    <?php if ($filtroSec): foreach ($secuencias as $s): if ((int)$s['id'] !== $filtroSec) continue; ?>
+        <span class="badge" style="background:#eef4fb;color:#2980b9;align-self:center;font-size:12px">
+            <i class="fa-solid fa-layer-group"></i> <?= clean($s['nombre']) ?>
+            <?= $s['estado']==='activa' ? ' · activa' : '' ?>
+        </span>
+    <?php endforeach; endif; ?>
 </div>
 
 <!-- ── FILTROS ── -->
@@ -226,10 +288,18 @@ include 'includes/header.php';
 <form method="GET" class="d-flex gap-2 align-center" style="flex-wrap:wrap">
     <input type="hidden" name="tab" value="<?= $tab ?>">
     <i class="fa-solid fa-magnifying-glass text-muted"></i>
-    <input type="text" name="q" class="form-control" placeholder="N° doc, cliente, RIF..." value="<?= $busqueda ?>" style="max-width:220px">
-    <input type="date" name="fecha_ini" class="form-control" value="<?= $fechaIni ?>" style="max-width:148px">
+    <input type="text" name="q" class="form-control" placeholder="N° doc, cliente, RIF..." value="<?= $busqueda ?>" style="max-width:200px">
+    <select name="secuencia" class="form-select" style="max-width:230px" title="Secuencia">
+        <option value="0">Todas las secuencias</option>
+        <?php foreach($secuencias as $s): ?>
+        <option value="<?= (int)$s['id'] ?>" <?= $filtroSec===(int)$s['id']?'selected':'' ?>>
+            <?= clean($s['nombre']) ?><?= $s['estado']==='activa' ? ' (activa)' : '' ?>
+        </option>
+        <?php endforeach; ?>
+    </select>
+    <input type="date" name="fecha_ini" class="form-control" value="<?= $fechaIni ?>" style="max-width:148px" title="Desde (opcional)">
     <span class="text-muted">a</span>
-    <input type="date" name="fecha_fin" class="form-control" value="<?= $fechaFin ?>" style="max-width:148px">
+    <input type="date" name="fecha_fin" class="form-control" value="<?= $fechaFin ?>" style="max-width:148px" title="Hasta (opcional)">
     <?php if ($tab==='venta'): ?>
     <select name="estado" class="form-select" style="max-width:130px">
         <option value="">Todos</option>
