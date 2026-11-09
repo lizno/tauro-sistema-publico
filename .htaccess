@@ -1,0 +1,16 @@
+# Security headers
+Header always set X-Content-Type-Options nosniff
+Header always set X-Frame-Options SAMEORIGIN
+Header always set X-XSS-Protection "1; mode=block"
+
+# Protect sensitive directories
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    # Prevent direct access to functions/ directory
+    RewriteRule ^functions/(.*)$ - [F,L]
+    # Prevent direct access to config/
+    RewriteRule ^config/(.*)$ - [F,L]
+</IfModule>
+
+# Disable directory listing
+Options -Indexes

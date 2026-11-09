@@ -1,0 +1,25 @@
+# Configuración con credenciales
+config/config.php
+
+# Contenido generado por los usuarios
+assets/uploads/*
+!assets/uploads/.htaccess
+!assets/uploads/index.php
+!assets/uploads/**/index.php
+
+# Comprimidos y temporales
+*.zip
+*.rar
+*.7z
+*.bak
+*.old
+*.log
+*.tmp
+Thumbs.db
+desktop.ini
+.DS_Store
+
+# Entornos locales
+.env
+.vscode/
+.idea/
