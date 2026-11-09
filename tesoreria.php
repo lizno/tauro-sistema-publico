@@ -75,7 +75,7 @@ $whereTM = $filtrosTM ? (' WHERE ' . implode(' AND ', $filtrosTM)) : '';
 $totCobros = (float)(dbQueryOne(
     "SELECT COALESCE(SUM(p.monto_usd),0) t
      FROM pagos p JOIN ventas v ON v.id=p.venta_id
-     WHERE p.anulado=0 {$wherePagos}", $params)['t'] ?? 0);
+     WHERE p.anulado=0 AND v.estado<>'anulado' {$wherePagos}", $params)['t'] ?? 0);
 
 $totVendedores = (float)(dbQueryOne(
     "SELECT COALESCE(SUM(monto_usd),0) t FROM pagos_vendedor WHERE 1 {$wherePV}", $paramsPV)['t'] ?? 0);
@@ -101,7 +101,7 @@ foreach (dbQuery(
      JOIN ventas v   ON v.id=p.venta_id
      LEFT JOIN clientes c   ON c.id=v.cliente_id
      LEFT JOIN vendedores vd ON vd.id=v.vendedor_id
-     WHERE p.anulado=0 {$wherePagos}
+     WHERE p.anulado=0 AND v.estado<>'anulado' {$wherePagos}
      ORDER BY p.fecha DESC, p.id DESC LIMIT 200", $params) as $r) {
     $movs[] = [
         'fecha'=>$r['fecha'], 'tipo'=>'ingreso', 'categoria'=>'cobro_cliente',

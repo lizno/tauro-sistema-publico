@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 require_once 'config/config.php';
 require_once 'functions/db.php';
 require_once 'functions/helpers.php';
@@ -16,7 +16,7 @@ function totalesSecuencia(int $sid): array {
     $c = dbQueryOne(
         "SELECT COALESCE(SUM(p.monto_usd),0) t
          FROM pagos p JOIN ventas v ON v.id=p.venta_id
-         WHERE v.secuencia_id=? AND p.anulado=0", [$sid]);
+         WHERE v.secuencia_id=? AND p.anulado=0 AND v.estado<>'anulado'", [$sid]);
     $r = dbQueryOne(
         "SELECT COALESCE(SUM(monto_usd),0) t FROM pagos_vendedor WHERE secuencia_id=?", [$sid]);
 

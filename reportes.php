@@ -189,7 +189,8 @@ if ($tipoRep && isset($catalogo[$tipoRep])) {
                      LEFT JOIN ventas v ON p.venta_id=v.id
                      LEFT JOIN clientes c ON v.cliente_id=c.id
                      LEFT JOIN usuarios u ON p.usuario_id=u.id
-                     WHERE p.fecha BETWEEN ? AND ?";
+                     WHERE p.anulado=0 AND (v.id IS NULL OR v.estado<>'anulado')
+                       AND p.fecha BETWEEN ? AND ?";
             $p = [$fechaIni,$fechaFin];
             if ($clienteId) { $sql.=" AND c.id=?"; $p[]=$clienteId; }
             $sql.=" ORDER BY p.fecha DESC,p.id DESC";
