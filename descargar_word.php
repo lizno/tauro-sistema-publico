@@ -202,7 +202,7 @@ function img(string $rId, int $emu): string {
    DIMENSIONES
    Carta: 12240×15840 twips. Márgenes 720 (0.5in) → contenido 10800
    ═══════════════════════════════════════════════════════════ */
-$CW      = 10800;
+$CW      = 11106;
 $LOGO_EMU = 635000; // 50pt
 
 /* ═══════════════════════════════════════════════════════════
@@ -246,7 +246,7 @@ if ($moneda !== 'BS') {
     for ($i=0;$i<5;$i++) $body .= pEmpty(360);
 }
 
-$body .= pEmpty(80);
+$body .= pEmpty(50);
 
 /* ── INFO CLIENTE + DATOS DOC ───────────────────────────── */
 $bInfo = [
@@ -295,12 +295,12 @@ $body .= tbl(tr(
     tc($doc,$docW,'F8FAFC',$PAD,'top',$bInfo)
 ), $CW);
 
-$body .= pEmpty(80);
+$body .= pEmpty(50);
 
 /* ── TABLA DE PRODUCTOS ─────────────────────────────────── */
-// Anchos columnas: # cod desc precio cant monto = 10800
-$cols = [420, 1080, 4680, 1380, 720, 2520];
-$RPAD = 50; // padding fila producto (muy compacto)
+// Anchos columnas: # cod desc precio cant monto = 11106 (margenes 1 cm)
+$cols = [360, 1950, 4500, 1300, 700, 2296];
+$RPAD = 40; // padding fila producto (muy compacto)
 
 // Cabecera: fondo color de marca, letra forzada a negro por p()
 $hBrd = ['bottom'=>['v'=>'single','sz'=>4,'c'=>'FFFFFF']];
@@ -328,7 +328,7 @@ foreach ($detalles as $k => $d) {
 
     $prodRows .= tr(
         tc(p([['text'=>(string)($k+1),'sz'=>17,'col'=>'000000']],'center',0,0),$cols[0],$bg,$RPAD,'top',$rBrd).
-        tc(p([['text'=>$d['ref']??$d['codigo']??'','sz'=>17,'b'=>true,'col'=>'000000']],'left',0,0),$cols[1],$bg,$RPAD,'top',$rBrd).
+        tc(p([['text'=>$d['ref']??$d['codigo']??'','sz'=>16,'b'=>true,'col'=>'000000']],'left',0,0),$cols[1],$bg,$RPAD,'top',$rBrd).
         tc(p([['text'=>$d['descripcion'],'sz'=>17,'col'=>'000000']],'left',0,0),$cols[2],$bg,$RPAD,'top',$rBrd).
         tc(p([['text'=>$pFmt,'sz'=>17,'col'=>'000000']],'right',0,0),$cols[3],$bg,$RPAD,'top',$rBrd).
         tc(p([['text'=>number_format($d['cantidad'],2),'sz'=>17,'b'=>true,'col'=>'000000']],'right',0,0),$cols[4],$bg,$RPAD,'top',$rBrd).
@@ -520,7 +520,7 @@ $DOC = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 .$body.
 '<w:sectPr>
   <w:pgSz w:w="12240" w:h="15840" w:orient="portrait"/>
-  <w:pgMar w:top="720" w:right="720" w:bottom="720" w:left="720"
+  <w:pgMar w:top="567" w:right="567" w:bottom="567" w:left="567"
            w:header="0" w:footer="0" w:gutter="0"/>
 </w:sectPr>
 </w:body></w:document>';
